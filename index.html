@@ -55,41 +55,81 @@
     <div class="brand">
       <!-- Logo: die vier Farben im doppeldeutschen Blatt (Eichel, Laub, Herz, Schellen) – identisch mit logo.svg -->
       <svg class="logo" viewBox="0 0 512 512" aria-hidden="true">
-        <defs>
-          <pattern id="lg-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V7M0 0H7" stroke="#4a2c10" stroke-width="1.4"/></pattern>
-          <clipPath id="lg-ball"><circle cx="50" cy="56" r="33"/></clipPath>
-          <g id="lg-eichel">
-            <path d="M48 20V9Q49 3 57 3V8Q53 8 53 12V20Z" fill="#5a3a1a"/>
-            <path d="M27 42C25 62 33 84 50 95C67 84 75 62 73 42Z" fill="#d9a52b" stroke="#6b4a10" stroke-width="2.5" stroke-linejoin="round"/>
-            <path d="M37 54C36 66 40 76 46 84" fill="none" stroke="#fff3c4" stroke-width="4" stroke-linecap="round" opacity=".7"/>
-            <path d="M20 46C18 28 32 16 50 16C68 16 82 28 80 46C66 51 34 51 20 46Z" fill="#8f5e2c" stroke="#4a2c10" stroke-width="2.5" stroke-linejoin="round"/>
-            <path d="M20 46C18 28 32 16 50 16C68 16 82 28 80 46C66 51 34 51 20 46Z" fill="url(#lg-hatch)"/>
-          </g>
-          <g id="lg-laub">
-            <path d="M51 70Q52 84 44 96" fill="none" stroke="#1d5e27" stroke-width="5" stroke-linecap="round"/>
-            <path d="M50 6C60 22 90 34 88 58C86 74 68 80 50 70C32 80 14 74 12 58C10 34 40 22 50 6Z" fill="#3a9a45" stroke="#1d5e27" stroke-width="2.5" stroke-linejoin="round"/>
-            <path d="M50 16V70M50 32L38 42M50 32L62 42M50 46L28 56M50 46L72 56" fill="none" stroke="#1d5e27" stroke-width="2.2" stroke-linecap="round"/>
-          </g>
-          <g id="lg-herz">
-            <path d="M50 88C22 68 10 52 10 36C10 22 20 13 32 13C41 13 47 19 50 26C53 19 59 13 68 13C80 13 90 22 90 36C90 52 78 68 50 88Z" fill="#d7262b" stroke="#7a1014" stroke-width="2.5" stroke-linejoin="round"/>
-            <path d="M21 35C21 27 26 21 33 21" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".45"/>
-          </g>
-          <g id="lg-schellen">
-            <circle cx="50" cy="16" r="6" fill="none" stroke="#6b4a10" stroke-width="3.5"/>
-            <circle cx="50" cy="56" r="34" fill="#e9b824" stroke="#6b4a10" stroke-width="2.5"/>
-            <g clip-path="url(#lg-ball)"><rect x="10" y="36" width="80" height="16" fill="#c8202a"/><path d="M10 36H90M10 52H90" stroke="#6b4a10" stroke-width="2"/></g>
-            <path d="M28 62C29 70 33 77 39 81" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".5"/>
-            <path d="M50 70V89" stroke="#2a1a08" stroke-width="3.5" stroke-linecap="round"/>
-            <circle cx="50" cy="70" r="5" fill="#2a1a08"/>
-          </g>
-        </defs>
-        <rect x="8" y="8" width="496" height="496" rx="100" fill="#f6eedb"/>
-        <rect x="28" y="28" width="456" height="456" rx="82" fill="none" stroke="#c9a15a" stroke-width="5"/>
-        <use href="#lg-eichel" transform="translate(56 56) scale(1.8)"/>
-        <use href="#lg-laub" transform="translate(276 56) scale(1.8)"/>
-        <use href="#lg-herz" transform="translate(56 276) scale(1.8)"/>
-        <use href="#lg-schellen" transform="translate(276 276) scale(1.8)"/>
-      </svg>
+  <defs>
+    <!-- heraldische Schraffur für die rechte Hälfte -->
+    <pattern id="lg-vl" width="3.6" height="4" patternUnits="userSpaceOnUse"><path d="M1.8 0V4" stroke="#000" stroke-width="1"/></pattern>
+    <pattern id="lg-hl" width="4" height="3.6" patternUnits="userSpaceOnUse"><path d="M0 1.8H4" stroke="#000" stroke-width="1"/></pattern>
+    <clipPath id="lg-r"><rect x="50" y="-10" width="60" height="120"/></clipPath>
+    <clipPath id="lg-c"><circle cx="50" cy="50" r="44"/></clipPath>
+    <!-- Eichel -->
+    <g id="lg-eichel">
+      <path d="M48 85C50 92 45 96 36 99C47 99 54 94 53 85Z" fill="#1e8c1e" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M28 50V24C28 11 38 3 50 3C62 3 72 11 72 24V50Z" fill="#ffe600"/>
+      <g clip-path="url(#lg-r)">
+        <path d="M28 50V24C28 11 38 3 50 3C62 3 72 11 72 24V50Z" fill="#e20000"/>
+        <path d="M28 50V24C28 11 38 3 50 3C62 3 72 11 72 24V50Z" fill="url(#lg-vl)"/>
+      </g>
+      <path d="M28 50V24C28 11 38 3 50 3C62 3 72 11 72 24V50Z" fill="none" stroke="#000" stroke-width="2.5" stroke-linejoin="round"/>
+      <rect x="28" y="50" width="22" height="7" fill="#1a4fd6"/>
+      <rect x="50" y="50" width="22" height="7" fill="#000"/>
+      <rect x="28" y="50" width="44" height="7" fill="none" stroke="#000" stroke-width="2"/>
+      <path d="M14 57H86C86 76 72 86 50 86C28 86 14 76 14 57Z" fill="#1e8c1e"/>
+      <path d="M14 57H86C86 76 72 86 50 86C28 86 14 76 14 57Z" fill="url(#lg-vl)" clip-path="url(#lg-r)"/>
+      <path d="M14 57H86C86 76 72 86 50 86C28 86 14 76 14 57Z" fill="none" stroke="#000" stroke-width="2.5" stroke-linejoin="round"/>
+      <path id="lg-komma" d="M27 62c3.5 0 6 2.5 5 7c-1 5-5 8-9 10c2.5-3.5 3.5-6 2.5-8.5c-2.5-1-3.5-2.5-3.5-4.5c0-2.5 2.5-4 5-4Z" fill="#000"/>
+      <use href="#lg-komma" transform="translate(20 0)"/>
+      <use href="#lg-komma" transform="translate(40 0)"/>
+    </g>
+    <!-- Laub (Grün) -->
+    <g id="lg-laub">
+      <path d="M48 78C49 88 45 93 37 97C47 96 54 90 53 78Z" fill="#1e8c1e" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M50 5C60 20 92 30 92 56C92 75 78 85 64 85C57 85 52 81 50 77C48 81 43 85 36 85C22 85 8 75 8 56C8 30 40 20 50 5Z" fill="#1e8c1e"/>
+      <path d="M50 5C60 20 92 30 92 56C92 75 78 85 64 85C57 85 52 81 50 77C48 81 43 85 36 85C22 85 8 75 8 56C8 30 40 20 50 5Z" fill="url(#lg-vl)" clip-path="url(#lg-r)"/>
+      <path d="M50 5C60 20 92 30 92 56C92 75 78 85 64 85C57 85 52 81 50 77C48 81 43 85 36 85C22 85 8 75 8 56C8 30 40 20 50 5Z" fill="none" stroke="#000" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M50 12V77M50 30L28 26M38 28L34 21M50 30L72 26M62 28L66 21M50 46L14 42M36 44L31 36M24 43L20 36M50 46L86 42M64 44L69 36M76 43L80 36M50 62L14 60M36 61L31 54M24 60.5L20 54M50 62L86 60M64 61L69 54M76 60.5L80 54" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+    </g>
+    <!-- Herz -->
+    <g id="lg-herz">
+      <path d="M50 92C30 72 8 56 8 34C8 20 18 10 31 10C41 10 47 17 50 24C53 17 59 10 69 10C82 10 92 20 92 34C92 56 70 72 50 92Z" fill="#e20000"/>
+      <path d="M50 92C30 72 8 56 8 34C8 20 18 10 31 10C41 10 47 17 50 24C53 17 59 10 69 10C82 10 92 20 92 34C92 56 70 72 50 92Z" fill="url(#lg-vl)" clip-path="url(#lg-r)"/>
+      <path d="M50 92C30 72 8 56 8 34C8 20 18 10 31 10C41 10 47 17 50 24C53 17 59 10 69 10C82 10 92 20 92 34C92 56 70 72 50 92Z" fill="none" stroke="#000" stroke-width="2.5" stroke-linejoin="round"/>
+    </g>
+    <!-- Schellen -->
+    <g id="lg-schellen">
+      <g clip-path="url(#lg-c)">
+        <rect width="100" height="100" fill="#ffe600"/>
+        <rect y="36" width="100" height="20" fill="#e20000"/>
+        <g clip-path="url(#lg-r)">
+          <rect width="100" height="36" fill="url(#lg-hl)"/>
+          <rect y="36" width="100" height="20" fill="url(#lg-vl)"/>
+          <rect y="56" width="100" height="44" fill="url(#lg-hl)"/>
+        </g>
+        <path d="M0 36H100M0 56H100" stroke="#000" stroke-width="2"/>
+        <g stroke="#000" stroke-width="1.8">
+          <circle cx="24" cy="46" r="6.5" fill="#ffe600"/><circle cx="24" cy="46" r="6.5" fill="url(#lg-hl)"/>
+          <circle cx="50" cy="46" r="6.5" fill="#ffe600"/><circle cx="50" cy="46" r="6.5" fill="url(#lg-hl)"/>
+          <circle cx="76" cy="46" r="6.5" fill="#ffe600"/><circle cx="76" cy="46" r="6.5" fill="url(#lg-hl)"/>
+        </g>
+        <g fill="#1e8c1e" stroke="#000" stroke-width="2" stroke-linejoin="round">
+          <path d="M48 98C28 98 16 86 18 68C36 68 46 82 48 98Z"/>
+          <path d="M52 98C72 98 84 86 82 68C64 68 54 82 52 98Z"/>
+          <path d="M50 99C35 88 35 70 50 58C65 70 65 88 50 99Z"/>
+        </g>
+        <g fill="url(#lg-vl)" clip-path="url(#lg-r)">
+          <path d="M52 98C72 98 84 86 82 68C64 68 54 82 52 98Z"/>
+          <path d="M50 99C35 88 35 70 50 58C65 70 65 88 50 99Z"/>
+        </g>
+      </g>
+      <circle cx="50" cy="50" r="44" fill="none" stroke="#000" stroke-width="2.5"/>
+    </g>
+  </defs>
+  <rect x="8" y="8" width="496" height="496" rx="100" fill="#f6eedb"/>
+  <rect x="28" y="28" width="456" height="456" rx="82" fill="none" stroke="#c9a15a" stroke-width="5"/>
+  <use href="#lg-eichel" transform="translate(56 56) scale(1.8)"/>
+  <use href="#lg-laub" transform="translate(276 56) scale(1.8)"/>
+  <use href="#lg-herz" transform="translate(56 276) scale(1.8)"/>
+  <use href="#lg-schellen" transform="translate(276 276) scale(1.8)"/>
+</svg>
       <div>
         <h1>Herzln Offline</h1>
         <div class="sub">Spiel 1 setzt die Spielernamen. Danach gelten sie für alle Spiele.</div>
