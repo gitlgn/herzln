@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Herzln Offline</title>
+<meta name="theme-color" content="#111827" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" type="image/svg+xml" href="logo.svg" />
+<link rel="icon" type="image/png" href="icon-192.png" />
+<style>
+  :root{--bg:#111827;--panel:#1f2937;--panel2:#0f172a;--line:#374151;--text:#e5e7eb;--muted:#9ca3af;--good:#10b981;--bad:#ef4444;--warn:#f59e0b;--btn:#14b8a6}
+  *{box-sizing:border-box}
+  body{margin:0;padding:16px;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text)}
+  .wrap{max-width:1200px;margin:0 auto}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0}
+  h1,h2{margin:0 0 10px}
+  .sub{color:var(--muted);font-size:.95rem;line-height:1.35}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  @media(min-width:700px){.grid{grid-template-columns:repeat(4,1fr)}}
+  label{display:block;margin-bottom:6px;color:var(--muted);font-size:.9rem}
+  input,select,button{width:100%;min-height:50px;border-radius:12px;border:1px solid var(--line);padding:10px 12px;font-size:1rem;background:#111827;color:var(--text)}
+  [hidden]{display:none!important}
+  .brand{display:flex;align-items:center;gap:12px;flex:1}
+  .logo{width:56px;height:56px;flex:none}
+  input.dealer{border:2px solid #a78bfa;background:#1e1b4b;color:#ede9fe}
+  label.dealer{color:#c4b5fd;font-weight:700}
+  input.outside{border-color:var(--warn);background:#2f2208;color:#fde68a}
+  select,button{cursor:pointer;touch-action:manipulation}
+  button{background:var(--btn);color:#05211f;border:none;font-weight:800}
+  button.secondary{background:#374151;color:var(--text);border:1px solid var(--line)}
+  button.danger{background:var(--bad);color:white}
+  .status{margin-top:10px;padding:14px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);min-height:56px;display:flex;align-items:center}
+  .status.good{background:#06281f;border-color:var(--good);color:#a7f3d0}
+  .status.bad{background:#2b1111;border-color:var(--bad);color:#fecaca}
+  .status.neutral{background:var(--panel2);border-color:var(--line);color:#cbd5e1}
+  .status.warn{background:#2f2208;border-color:var(--warn);color:#fde68a}
+  .totals{display:grid;grid-template-columns:repeat(1,1fr);gap:10px}
+  .sum{padding:12px;border:1px solid var(--line);border-radius:12px;background:#0b1220}
+  .pill{padding:4px 10px;border-radius:999px;background:#0b1220;border:1px solid var(--line);font-size:.85rem;color:#cbd5e1}
+  .nav{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .playerrow{padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#0b1220;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:8px 0}
+  .roundwarn{border-color:var(--warn)!important;background:#2f2208!important;color:#fde68a!important}
+  .charts{display:grid;grid-template-columns:1fr;gap:12px}
+  @media(min-width:900px){.charts{grid-template-columns:1fr 1fr}}
+  .chartbox{background:#0b1220;border:1px solid var(--line);border-radius:12px;padding:8px}
+  canvas{width:100%;height:auto;display:block;border-radius:10px;background:#0b1220}
+  /* verstecktes file-input */
+  #jsonFileInput{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card nav">
+    <div class="brand">
+      <!-- Logo: die vier Farben im doppeldeutschen Blatt (Eichel, Laub, Herz, Schellen) – identisch mit logo.svg -->
+      <svg class="logo" viewBox="0 0 512 512" aria-hidden="true">
+        <defs>
+          <pattern id="lg-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V7M0 0H7" stroke="#4a2c10" stroke-width="1.4"/></pattern>
+          <clipPath id="lg-ball"><circle cx="50" cy="56" r="33"/></clipPath>
+          <g id="lg-eichel">
+            <path d="M48 20V9Q49 3 57 3V8Q53 8 53 12V20Z" fill="#5a3a1a"/>
+            <path d="M27 42C25 62 33 84 50 95C67 84 75 62 73 42Z" fill="#d9a52b" stroke="#6b4a10" stroke-width="2.5" stroke-linejoin="round"/>
+            <path d="M37 54C36 66 40 76 46 84" fill="none" stroke="#fff3c4" stroke-width="4" stroke-linecap="round" opacity=".7"/>
+            <path d="M20 46C18 28 32 16 50 16C68 16 82 28 80 46C66 51 34 51 20 46Z" fill="#8f5e2c" stroke="#4a2c10" stroke-width="2.5" stroke-linejoin="round"/>
+            <path d="M20 46C18 28 32 16 50 16C68 16 82 28 80 46C66 51 34 51 20 46Z" fill="url(#lg-hatch)"/>
+          </g>
+          <g id="lg-laub">
+            <path d="M51 70Q52 84 44 96" fill="none" stroke="#1d5e27" stroke-width="5" stroke-linecap="round"/>
+            <path d="M50 6C60 22 90 34 88 58C86 74 68 80 50 70C32 80 14 74 12 58C10 34 40 22 50 6Z" fill="#3a9a45" stroke="#1d5e27" stroke-width="2.5" stroke-linejoin="round"/>
+            <path d="M50 16V70M50 32L38 42M50 32L62 42M50 46L28 56M50 46L72 56" fill="none" stroke="#1d5e27" stroke-width="2.2" stroke-linecap="round"/>
+          </g>
+          <g id="lg-herz">
+            <path d="M50 88C22 68 10 52 10 36C10 22 20 13 32 13C41 13 47 19 50 26C53 19 59 13 68 13C80 13 90 22 90 36C90 52 78 68 50 88Z" fill="#d7262b" stroke="#7a1014" stroke-width="2.5" stroke-linejoin="round"/>
+            <path d="M21 35C21 27 26 21 33 21" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".45"/>
+          </g>
+          <g id="lg-schellen">
+            <circle cx="50" cy="16" r="6" fill="none" stroke="#6b4a10" stroke-width="3.5"/>
+            <circle cx="50" cy="56" r="34" fill="#e9b824" stroke="#6b4a10" stroke-width="2.5"/>
+            <g clip-path="url(#lg-ball)"><rect x="10" y="36" width="80" height="16" fill="#c8202a"/><path d="M10 36H90M10 52H90" stroke="#6b4a10" stroke-width="2"/></g>
+            <path d="M28 62C29 70 33 77 39 81" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".5"/>
+            <path d="M50 70V89" stroke="#2a1a08" stroke-width="3.5" stroke-linecap="round"/>
+            <circle cx="50" cy="70" r="5" fill="#2a1a08"/>
+          </g>
+        </defs>
+        <rect x="8" y="8" width="496" height="496" rx="100" fill="#f6eedb"/>
+        <rect x="28" y="28" width="456" height="456" rx="82" fill="none" stroke="#c9a15a" stroke-width="5"/>
+        <use href="#lg-eichel" transform="translate(56 56) scale(1.8)"/>
+        <use href="#lg-laub" transform="translate(276 56) scale(1.8)"/>
+        <use href="#lg-herz" transform="translate(56 276) scale(1.8)"/>
+        <use href="#lg-schellen" transform="translate(276 276) scale(1.8)"/>
+      </svg>
+      <div>
+        <h1>Herzln Offline</h1>
+        <div class="sub">Spiel 1 setzt die Spielernamen. Danach gelten sie für alle Spiele.</div>
+      </div>
+    </div>
+    <div class="pill" id="gamePill">Spiel 1/8</div>
+  </div>
+
+  <div class="card nav">
+    <button id="prevGameBtn" type="button" class="secondary">← Vorheriges</button>
+    <button id="nextGameBtn" type="button" class="secondary">Nächstes →</button>
+    <button id="installBtn" type="button" hidden>📲 App installieren</button>
+    <button id="saveJsonBtn" type="button">💾 Speichern (JSON)</button>
+    <button id="loadJsonBtn" type="button" class="secondary">📂 Laden (JSON)</button>
+    <input type="file" id="jsonFileInput" accept=".json">
+    <button id="downloadCsvBtn" type="button">⬇ CSV exportieren</button>
+    <button id="resetBtn" type="button" class="danger">Alles löschen</button>
+    <div id="status" class="status neutral" style="width:100%"><div>Bereit.</div></div>
+  </div>
+
+  <div class="card" id="playersCard">
+    <h2>Spielernamen</h2>
+    <div class="grid">
+      <div><label for="seat1">Spieler A</label><select id="seat1"><option value="">-- wählen --</option><option>Mari</option><option>Fabi</option><option>Max</option><option>Robi</option></select></div>
+      <div><label for="seat2">Spieler B</label><select id="seat2"><option value="">-- wählen --</option><option>Mari</option><option>Fabi</option><option>Max</option><option>Robi</option></select></div>
+      <div><label for="seat3">Spieler C</label><select id="seat3"><option value="">-- wählen --</option><option>Mari</option><option>Fabi</option><option>Max</option><option>Robi</option></select></div>
+      <div><label for="seat4">Spieler D</label><select id="seat4"><option value="">-- wählen --</option><option>Mari</option><option>Fabi</option><option>Max</option><option>Robi</option></select></div>
+    </div>
+    <div class="grid" style="margin-top:12px">
+      <div><label for="dealerSelect">🃏 Geber in Spiel 1, Runde 1</label><select id="dealerSelect"><option value="0">A</option><option value="1">B</option><option value="2">C</option><option value="3">D</option></select></div>
+    </div>
+    <div class="sub" style="margin-top:8px">Der Geber wechselt jede Runde reihum (A → B → C → D → A …), auch über die Spielgrenzen hinweg, und ist bei der Punkteeingabe violett markiert.</div>
+  </div>
+
+  <div class="card">
+    <h2 id="gameTitle">Spiel 1</h2>
+    <div class="sub" id="gameSub">Eingaben für das aktuelle Spiel.</div>
+    <div id="roundArea"></div>
+  </div>
+
+  <div class="card">
+    <h2>CSV Vorschau</h2>
+    <textarea id="csvPreview" readonly style="width:100%;min-height:220px;border-radius:12px;border:1px solid var(--line);background:#0b1220;color:#e5e7eb;padding:12px;font-family:ui-monospace,monospace;font-size:.95rem;"></textarea>
+  </div>
+
+  <div class="card">
+    <h2>Punkte je Spieler</h2>
+    <div id="playerList"></div>
+  </div>
+
+  <div class="card">
+    <h2>Liniengrafiken</h2>
+    <div class="charts">
+      <div class="chartbox"><canvas id="chart1" width="520" height="320"></canvas></div>
+      <div class="chartbox"><canvas id="chart2" width="520" height="320"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <button id="nextGameBtnBottom" type="button" class="secondary">Nächstes Spiel →</button>
+  </div>
+</div>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const statusEl = $('status'), csvPreview = $('csvPreview'), playerList = $('playerList');
+  const gamePill = $('gamePill'), gameTitle = $('gameTitle'), gameSub = $('gameSub'), roundArea = $('roundArea');
+  const seats = ['seat1','seat2','seat3','seat4'];
+  const rounds = [1,2,3,4,5];
+  const ROUND_NAMES = ['Stich','Herz','Ober','Mattel','Unter'];
+  const roundIds = rounds.flatMap(r => ['r'+r+'p1','r'+r+'p2','r'+r+'p3','r'+r+'p4']);
+
+  // ── In-Memory State ────────────────────────────────────────────────────
+  // dealer = Geber in Spiel 1 (0-3 = A-D); danach reihum je Spiel
+  let state = { seats: ['','','',''], dealer: 0, games: {}, currentGame: 1 };
+  let currentGame = 1, seatLocked = false, saveTimer = null;
+
+  // localStorage als Auto-Save – überlebt auch das Schließen der installierten App
+  // (sessionStorage wird nur noch zum Übernehmen alter Stände gelesen)
+  const SESSION_KEY = 'herzln_session_v1';
+  function sessionSave(){ try{ localStorage.setItem(SESSION_KEY, JSON.stringify(state)); }catch(e){} }
+  function sessionLoad(){
+    try{ const s=localStorage.getItem(SESSION_KEY)||sessionStorage.getItem(SESSION_KEY); return s?JSON.parse(s):null; }catch(e){ return null; }
+  }
+
+  function setStatus(type,text){ statusEl.className='status '+type; statusEl.innerHTML='<div>'+text+'</div>'; }
+  function safeEl(id){ return document.getElementById(id)||null; }
+  function readIds(ids){ return ids.map(id => safeEl(id)?.value??''); }
+  function setIds(ids,vals){ ids.forEach((id,i)=>{ const el=safeEl(id); if(el&&vals&&vals[i]!==undefined) el.value=vals[i]; }); }
+  function num(v){ const n=parseInt(v||'0',10); return Number.isFinite(n)?n:0; }
+  function seatNames(){ return readIds(seats).map((v,i)=>v||String.fromCharCode(65+i)); }
+  function roundData(){ return rounds.map(r => readIds(['r'+r+'p1','r'+r+'p2','r'+r+'p3','r'+r+'p4']).map(num)); }
+  function gameKey(n){ return 'g'+n; }
+  function firstDealer(){ const d=num(state.dealer); return d>=0&&d<4?d:0; }
+  // Geberwechsel jede Runde, durchgehend über alle Spiele (5 Runden je Spiel)
+  function dealerOf(g,r){ return (firstDealer()+(g-1)*rounds.length+(r-1))%4; }
+
+  // State in Formularfelder schreiben
+  function stateToForm(){
+    setIds(seats, state.seats);
+    const ds=safeEl('dealerSelect'); if(ds) ds.value=String(firstDealer());
+    currentGame = Math.min(8, Math.max(1, state.currentGame||1));
+    const g = state.games[gameKey(currentGame)];
+    if(g) rounds.forEach((r,idx)=>setIds(['r'+r+'p1','r'+r+'p2','r'+r+'p3','r'+r+'p4'], g[idx]||[]));
+    else roundIds.forEach(id=>{ const el=safeEl(id); if(el) el.value='0'; });
+  }
+
+  // Formularfelder → State schreiben
+  function formToState(){
+    state.seats = readIds(seats);
+    state.dealer = num(safeEl('dealerSelect')?.value);
+    state.games[gameKey(currentGame)] = roundData();
+    state.currentGame = currentGame;
+  }
+
+  function scheduleSave(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(()=>{
+      formToState(); sessionSave(); render();
+      // Validierungswarnungen nicht mit der Speicher-Meldung überschreiben
+      if(!statusEl.classList.contains('warn')) setStatus('good','Automatisch gespeichert.');
+    }, 120);
+  }
+
+  // ── JSON Download ──────────────────────────────────────────────────────
+  function downloadJson(){
+    formToState();
+    const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'herzln_stand.json';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 1000);
+    setStatus('good','JSON-Datei wird heruntergeladen.');
+  }
+
+  // ── JSON Upload ────────────────────────────────────────────────────────
+  function loadJsonFromFile(file){
+    const reader = new FileReader();
+    reader.onload = e => {
+      try{
+        const parsed = JSON.parse(e.target.result);
+        if(!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Ungültiges Format');
+        // Struktur absichern, damit fremde/defekte JSON-Dateien die App nicht crashen
+        const cleanSeats = Array.from({length:4},(_,i)=>{
+          const v = Array.isArray(parsed.seats) ? parsed.seats[i] : '';
+          return typeof v === 'string' ? v : '';
+        });
+        const cleanGames = {};
+        if(parsed.games && typeof parsed.games === 'object'){
+          for(let g=1;g<=8;g++){
+            const src = parsed.games[gameKey(g)];
+            if(!Array.isArray(src)) continue;
+            cleanGames[gameKey(g)] = Array.from({length:5},(_,ri)=>{
+              const row = Array.isArray(src[ri]) ? src[ri] : [];
+              return Array.from({length:4},(_,pi)=>num(row[pi]));
+            });
+          }
+        }
+        state = { seats: cleanSeats, dealer: Math.min(3, Math.max(0, num(parsed.dealer))), games: cleanGames, currentGame: num(parsed.currentGame)||1 };
+        currentGame = Math.min(8, Math.max(1, state.currentGame));
+        state.currentGame = currentGame;
+        seatLocked = currentGame > 1;
+        stateToForm();
+        updateSeatLock();
+        sessionSave();
+        setStatus('good','Gespeicherter Stand geladen.');
+        render();
+      }catch(err){
+        setStatus('bad','Laden fehlgeschlagen: '+err.message);
+      }
+    };
+    reader.onerror = ()=> setStatus('bad','Datei konnte nicht gelesen werden.');
+    reader.readAsText(file);
+  }
+
+  // ── CSV Download ───────────────────────────────────────────────────────
+  function buildCsv(){
+    const names = seatNames();
+    const all = [];
+    all.push(['Spiel','Runde','Platz A','Platz B','Platz C','Platz D'].join(';'));
+    all.push(['Spieler','',''+names[0],''+names[1],''+names[2],''+names[3]].join(';'));
+    for(let g=1;g<=8;g++){
+      const arr = state.games[gameKey(g)] || Array.from({length:5},()=>[0,0,0,0]);
+      arr.forEach((r,i)=>all.push(['Spiel '+g,(i+1),r[0],r[1],r[2],r[3]].join(';')));
+    }
+    return all.join('\n');
+  }
+
+  function downloadCsv(){
+    formToState();
+    const csv = buildCsv();
+    csvPreview.value = csv;
+    const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'}); // BOM für Excel
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'herzln_export.csv';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 1000);
+    setStatus('good','CSV-Datei wird heruntergeladen.');
+  }
+
+  // ── UI ─────────────────────────────────────────────────────────────────
+  function renderRoundSection(){
+    const labels=rounds.map(r=>[r+' - '+ROUND_NAMES[r-1],'r'+r, r===5?180:90, r===5?60:10]);
+    roundArea.innerHTML = labels.map(([title,prefix,max,step])=>`
+      <div class="roundblock" data-prefix="${prefix}" style="margin-bottom:14px">
+        <div style="font-weight:700;margin:0 0 6px;color:#fde68a">${title}</div>
+        <div class="grid">
+          <div><label id="${prefix}l1" for="${prefix}p1">A</label><input id="${prefix}p1" type="number" inputmode="numeric" min="0" max="${max}" step="${step}" value="0"></div>
+          <div><label id="${prefix}l2" for="${prefix}p2">B</label><input id="${prefix}p2" type="number" inputmode="numeric" min="0" max="${max}" step="${step}" value="0"></div>
+          <div><label id="${prefix}l3" for="${prefix}p3">C</label><input id="${prefix}p3" type="number" inputmode="numeric" min="0" max="${max}" step="${step}" value="0"></div>
+          <div><label id="${prefix}l4" for="${prefix}p4">D</label><input id="${prefix}p4" type="number" inputmode="numeric" min="0" max="${max}" step="${step}" value="0"></div>
+        </div>
+      </div>`).join('');
+    // Listener neu binden (nach innerHTML-Ersatz)
+    bindInputListeners();
+  }
+
+  // In jedem Dropdown nur noch nicht vergebene Namen wählbar (eigene Auswahl bleibt)
+  function updateSeatOptions(){
+    const chosen = readIds(seats);
+    seats.forEach((id,si)=>{
+      const el=safeEl(id); if(!el) return;
+      Array.from(el.options).forEach(opt=>{
+        if(!opt.value) return; // "-- wählen --" immer erlaubt
+        opt.disabled = chosen.includes(opt.value) && opt.value!==chosen[si];
+      });
+    });
+  }
+
+  // Labels mit Namen setzen, Geber-Zellen des aktuellen Spiels markieren
+  function updateRoundLabels(){
+    const names=seatNames();
+    for(let r=1;r<=5;r++){ const d=dealerOf(currentGame,r); for(let i=1;i<=4;i++){
+      const isDealer=(i-1)===d;
+      const lab=safeEl('r'+r+'l'+i); if(lab){ lab.textContent=names[i-1]+(isDealer?' 🃏':''); lab.classList.toggle('dealer',isDealer); }
+      const inp=safeEl('r'+r+'p'+i); if(inp) inp.classList.toggle('dealer',isDealer);
+    } }
+    const ds=safeEl('dealerSelect');
+    if(ds) Array.from(ds.options).forEach((opt,i)=>{ const L=String.fromCharCode(65+i); opt.textContent=names[i]===L?L:L+' – '+names[i]; });
+  }
+  function updateUI(){
+    gamePill.textContent='Spiel '+currentGame+'/8';
+    gameTitle.textContent='Spiel '+currentGame;
+    gameSub.textContent=currentGame===1?'Namen setzen und Spielstand beginnen.':'Eingaben für das aktuelle Spiel.';
+  }
+  function updateSeatLock(){ seats.concat('dealerSelect').forEach(id=>{ const el=safeEl(id); if(el) el.disabled = seatLocked && currentGame>1; }); }
+
+  function validate(arr){
+    const statusArr=[];
+    for(let i=0;i<4;i++){ const s=arr[i].reduce((a,b)=>a+b,0), allZero=arr[i].every(v=>v===0); statusArr.push({ok:allZero||s===90,sum:s,allZero}); }
+    const r5=arr[4], r5sum=r5.reduce((a,b)=>a+b,0);
+    const r5ok=(r5.every(v=>v===0)&&r5sum===0)||(r5sum===360&&r5.every(v=>[0,60,120,180].includes(v)));
+    return {statusArr,r5ok,r5sum};
+  }
+
+  function renderPlayerList(names, arr){
+    const cur=[0,0,0,0], tot=[0,0,0,0];
+    for(let i=0;i<4;i++){ const minus=arr.slice(0,4).reduce((a,b)=>a+b[i],0); cur[i]=arr[4][i]-minus; }
+    // Gesamt über alle Spiele; für das aktuelle Spiel die Live-Eingaben statt des States nehmen
+    for(let g=1;g<=8;g++){
+      const ga = g===currentGame ? arr : state.games[gameKey(g)];
+      if(!Array.isArray(ga)) continue;
+      for(let i=0;i<4;i++){
+        const minus=ga.slice(0,4).reduce((a,b)=>a+((b||[])[i]||0),0);
+        tot[i]+=(((ga[4]||[])[i])||0)-minus;
+      }
+    }
+    const best=Math.max(...tot);
+    playerList.innerHTML=names.map((n,i)=>`<div class="playerrow"><div><strong>${String.fromCharCode(65+i)} / ${n}</strong>${tot[i]===best&&best!==0?' 👑':''}</div><div>Spiel ${currentGame}: ${cur[i]} &nbsp;·&nbsp; <strong>Gesamt: ${tot[i]}</strong></div></div>`).join('');
+  }
+
+  function applyCellValidation(){
+    for(let r=1;r<=4;r++){ for(let p=1;p<=4;p++){ const el=safeEl('r'+r+'p'+p); if(!el) continue; const v=num(el.value); el.classList.toggle('outside', el.value!==''&&(v<0||v>90||v%10!==0)); } }
+    for(let p=1;p<=4;p++){ const el=safeEl('r5p'+p); if(!el) continue; const v=num(el.value); el.classList.toggle('outside', el.value!==''&&![0,60,120,180].includes(v)); }
+  }
+
+  function validateNow(){
+    const arr=roundData(); const val=validate(arr);
+    for(let i=1;i<=4;i++){ const sum=val.statusArr[i-1].sum, allZero=val.statusArr[i-1].allZero; const block=safeEl('r'+i+'p1')?.closest('.roundblock'); if(block) block.classList.toggle('roundwarn', !allZero&&sum!==90); }
+    const r5block=safeEl('r5p1')?.closest('.roundblock'); if(r5block) r5block.classList.toggle('roundwarn', !arr[4].every(v=>v===0)&&!val.r5ok);
+    applyCellValidation();
+    if(!arr.slice(0,4).every(x=>x.every(v=>v===0))&&val.statusArr.some(s=>!s.ok)) setStatus('warn','Runde 1–4 weichen von 90 ab.');
+    else if(!arr[4].every(v=>v===0)&&!val.r5ok) setStatus('warn','Runde 5 weicht von 360 oder erlaubten Werten ab.');
+    else setStatus('good','Alles im grünen Bereich.');
+  }
+
+  function clearAll(){
+    seats.forEach(id=>{ const el=safeEl(id); if(el) el.value=''; });
+    const ds=safeEl('dealerSelect'); if(ds) ds.value='0';
+    roundIds.forEach(id=>{ const el=safeEl(id); if(el) el.value='0'; });
+    state = { seats:['','','',''], dealer:0, games:{}, currentGame:1 };
+    currentGame=1; seatLocked=false; updateSeatLock();
+    const prev=safeEl('prevGameBtn'); if(prev) prev.style.display='none';
+    try{ localStorage.removeItem(SESSION_KEY); sessionStorage.removeItem(SESSION_KEY); }catch(e){}
+    setStatus('bad','Gelöscht.'); render();
+  }
+
+  function loadGame(n){
+    formToState();
+    currentGame = n;
+    state.currentGame = n;
+    const g = state.games[gameKey(currentGame)];
+    if(g) rounds.forEach((r,idx)=>setIds(['r'+r+'p1','r'+r+'p2','r'+r+'p3','r'+r+'p4'], g[idx]||[]));
+    else roundIds.forEach(id=>{ const el=safeEl(id); if(el) el.value='0'; });
+    seatLocked = currentGame > 1;
+    updateSeatLock();
+    const prev=safeEl('prevGameBtn'); if(prev) prev.style.display=currentGame===1?'none':'';
+    sessionSave(); updateUI(); render();
+  }
+
+  function render(){
+    updateUI(); updateRoundLabels(); updateSeatOptions();
+    const names=seatNames(), arr=roundData();
+    const val=validate(arr);
+    for(let i=1;i<=4;i++){ const sum=val.statusArr[i-1].sum, allZero=val.statusArr[i-1].allZero; const block=safeEl('r'+i+'p1')?.closest('.roundblock'); if(block) block.classList.toggle('roundwarn', !allZero&&sum!==90); }
+    const r5block=safeEl('r5p1')?.closest('.roundblock'); if(r5block) r5block.classList.toggle('roundwarn', !arr[4].every(v=>v===0)&&!val.r5ok);
+    csvPreview.value=buildCsv();
+    renderPlayerList(names,arr);
+    validateNow();
+    drawCharts(names, state.games);
+  }
+
+  // ── Event Listener ─────────────────────────────────────────────────────
+  function bindIfExists(id, evt, fn){ const el=safeEl(id); if(el) el.addEventListener(evt,fn); }
+
+  function bindInputListeners(){
+    seats.concat(roundIds).forEach(id=>{
+      const el=safeEl(id);
+      if(el){
+        el.addEventListener('input', ()=>validateNow());
+        el.addEventListener('blur', ()=>{ validateNow(); scheduleSave(); });
+        el.addEventListener('change', ()=>{ validateNow(); if(seats.includes(id)){ updateSeatOptions(); updateRoundLabels(); scheduleSave(); } });
+      }
+    });
+  }
+
+  bindIfExists('prevGameBtn','click',()=>{ if(currentGame>1) loadGame(currentGame-1); });
+  bindIfExists('nextGameBtn','click',()=>{ if(currentGame<8) loadGame(currentGame+1); });
+  bindIfExists('nextGameBtnBottom','click',()=>{ if(currentGame<8) loadGame(currentGame+1); });
+
+  bindIfExists('saveJsonBtn','click', downloadJson);
+
+  bindIfExists('loadJsonBtn','click',()=>{ $('jsonFileInput').click(); });
+  bindIfExists('jsonFileInput','change', e=>{ const f=e.target.files[0]; if(f) loadJsonFromFile(f); e.target.value=''; });
+
+  bindIfExists('dealerSelect','change',()=>{ formToState(); sessionSave(); render(); });
+
+  bindIfExists('downloadCsvBtn','click', downloadCsv);
+  bindIfExists('resetBtn','click', clearAll);
+
+  // ── Installierbar (PWA) ────────────────────────────────────────────────
+  let installEvt=null;
+  window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); installEvt=e; $('installBtn').hidden=false; });
+  bindIfExists('installBtn','click', async ()=>{
+    if(!installEvt) return;
+    installEvt.prompt();
+    await installEvt.userChoice.catch(()=>{});
+    installEvt=null; $('installBtn').hidden=true;
+  });
+  window.addEventListener('appinstalled', ()=>{ $('installBtn').hidden=true; setStatus('good','App installiert.'); });
+  // Service Worker nur über http(s) möglich, nicht bei file://
+  if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+
+  // Charts bei Größenänderung/Drehen neu zeichnen
+  let resizeTimer=null;
+  window.addEventListener('resize', ()=>{ clearTimeout(resizeTimer); resizeTimer=setTimeout(()=>drawCharts(seatNames(), state.games),150); });
+
+  // ── Diagramme ──────────────────────────────────────────────────────────
+  function drawCharts(names, games){
+    const c1=safeEl('chart1'), c2=safeEl('chart2');
+    if(!c1||!c2) return;
+    // Canvas an Anzeigebreite + Geräte-DPI anpassen → scharfe, lesbare Schrift am Handy
+    const dpr=window.devicePixelRatio||1;
+    function fit(c){
+      const cssW=Math.max(280, Math.round(c.clientWidth||520));
+      const cssH=Math.round(cssW*0.62);
+      c.width=Math.round(cssW*dpr); c.height=Math.round(cssH*dpr);
+      const ctx=c.getContext('2d');
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      return {ctx,W:cssW,H:cssH};
+    }
+    const f1=fit(c1), f2=fit(c2);
+    const ctx1=f1.ctx, ctx2=f2.ctx;
+    const colors=['#14b8a6','#60a5fa','#f472b6','#f59e0b'];
+
+    // Legende als eigene Zeile oberhalb des Plots (verdeckt keine Daten)
+    function drawLegend(ctx, x, y){
+      let lx=x;
+      names.forEach((n,idx)=>{
+        ctx.fillStyle=colors[idx]; ctx.fillRect(lx,y,10,10);
+        ctx.fillStyle='#e5e7eb'; ctx.font='11px system-ui'; ctx.textAlign='left';
+        ctx.fillText(n, lx+14, y+9);
+        lx += 14 + ctx.measureText(n).width + 14;
+      });
+    }
+
+    // ── Chart 1: Nettopunkte je Spiel pro Spieler ──────────────────────
+    // net pro Spiel = Runde5[Spieler] − Summe(Runde1-4[Spieler])
+    // Runden 1-4 sind Minuspunkte, Runde 5 Pluspunkte
+    const gameNets = [0,1,2,3].map(pi =>
+      [1,2,3,4,5,6,7,8].map(g => {
+        const arr = games[gameKey(g)] || Array.from({length:5},()=>[0,0,0,0]);
+        const minus = arr.slice(0,4).reduce((s,r)=>s+(r[pi]||0), 0);
+        const plus  = (arr[4]||[])[pi] || 0;
+        return plus - minus;          // positiv = gutes Spiel, negativ = schlechtes
+      })
+    );
+
+    (function drawLineChart(){
+      const W=f1.W, H=f1.H;
+      const pL=44, pR=12, pT=52, pB=36;
+      const pw=W-pL-pR, ph=H-pT-pB;
+      ctx1.clearRect(0,0,W,H);
+      ctx1.fillStyle='#0b1220'; ctx1.fillRect(0,0,W,H);
+
+      const allV=gameNets.flat();
+      const minV=Math.min(0,...allV), maxV=Math.max(0,...allV);
+      const span=maxV-minV||1;
+      const toX=i=>pL+i*pw/7;
+      const toY=v=>pT+ph-(v-minV)/span*ph;
+      const zY=toY(0);
+
+      // Gitternetz
+      const ticks=5;
+      for(let t=0;t<=ticks;t++){
+        const v=minV+(maxV-minV)*t/ticks;
+        const y=toY(v);
+        ctx1.strokeStyle='#1f2d40'; ctx1.lineWidth=1;
+        ctx1.beginPath(); ctx1.moveTo(pL,y); ctx1.lineTo(pL+pw,y); ctx1.stroke();
+        ctx1.fillStyle='#6b7280'; ctx1.font='10px system-ui';
+        ctx1.textAlign='right';
+        ctx1.fillText(Math.round(v), pL-4, y+4);
+      }
+
+      // Nulllinie
+      ctx1.strokeStyle='#4b5563'; ctx1.lineWidth=1.5;
+      ctx1.setLineDash([5,4]);
+      ctx1.beginPath(); ctx1.moveTo(pL,zY); ctx1.lineTo(pL+pw,zY); ctx1.stroke();
+      ctx1.setLineDash([]);
+
+      // Achsen
+      ctx1.strokeStyle='#374151'; ctx1.lineWidth=1.5;
+      ctx1.beginPath(); ctx1.moveTo(pL,pT); ctx1.lineTo(pL,pT+ph); ctx1.lineTo(pL+pw,pT+ph); ctx1.stroke();
+
+      // X-Labels
+      ['1','2','3','4','5','6','7','8'].forEach((lab,i)=>{
+        ctx1.fillStyle='#9ca3af'; ctx1.font='11px system-ui'; ctx1.textAlign='center';
+        ctx1.fillText('Sp'+lab, toX(i), pT+ph+18);
+      });
+
+      // Titel + Legende oberhalb des Plots
+      ctx1.fillStyle='#e5e7eb'; ctx1.font='bold 12px system-ui'; ctx1.textAlign='left';
+      ctx1.fillText('Nettopunkte je Spiel ('+ROUND_NAMES[4]+' − übrige Runden)', 10, 16);
+      drawLegend(ctx1, 10, 26);
+
+      // Linien & Punkte
+      gameNets.forEach((ser,idx)=>{
+        ctx1.strokeStyle=colors[idx]; ctx1.lineWidth=2.5;
+        ctx1.beginPath();
+        ser.forEach((v,i)=>{ const xx=toX(i),yy=toY(v); i===0?ctx1.moveTo(xx,yy):ctx1.lineTo(xx,yy); });
+        ctx1.stroke();
+        ser.forEach((v,i)=>{
+          ctx1.fillStyle=colors[idx];
+          ctx1.beginPath(); ctx1.arc(toX(i),toY(v),4,0,Math.PI*2); ctx1.fill();
+        });
+      });
+
+    })();
+
+    // ── Chart 2: Balkendiagramm – 5 Kategorien × 4 Spieler ────────────
+    // Pro Runde (Kategorie) werden alle 8 Spiele summiert.
+    // Runden 1-4 = Minuspunkte (negativ dargestellt), Runde 5 = Pluspunkte
+    const catTotals = [0,1,2,3,4].map(ri =>    // index 0-4 = Runde 1-5
+      [0,1,2,3].map(pi =>
+        [1,2,3,4,5,6,7,8].reduce((s,g)=>{
+          const arr=games[gameKey(g)]||Array.from({length:5},()=>[0,0,0,0]);
+          const v=(arr[ri]||[])[pi]||0;
+          return s + (ri<4 ? -v : v);    // Runden 1-4 negieren → Minuspunkte
+        },0)
+      )
+    );
+
+    (function drawBarChart(){
+      const W=f2.W, H=f2.H;
+      const pL=44, pR=12, pT=52, pB=44;
+      const pw=W-pL-pR, ph=H-pT-pB;
+      ctx2.clearRect(0,0,W,H);
+      ctx2.fillStyle='#0b1220'; ctx2.fillRect(0,0,W,H);
+
+      const allV=catTotals.flat();
+      const minV=Math.min(0,...allV), maxV=Math.max(0,...allV);
+      const span=maxV-minV||1;
+      const toY=v=>pT+ph-(v-minV)/span*ph;
+      const zY=toY(0);
+
+      // Gitternetz
+      const ticks=5;
+      for(let t=0;t<=ticks;t++){
+        const v=minV+(maxV-minV)*t/ticks;
+        const y=toY(v);
+        ctx2.strokeStyle='#1f2d40'; ctx2.lineWidth=1;
+        ctx2.beginPath(); ctx2.moveTo(pL,y); ctx2.lineTo(pL+pw,y); ctx2.stroke();
+        ctx2.fillStyle='#6b7280'; ctx2.font='10px system-ui';
+        ctx2.textAlign='right';
+        ctx2.fillText(Math.round(v), pL-4, y+4);
+      }
+
+      // Nulllinie
+      ctx2.strokeStyle='#4b5563'; ctx2.lineWidth=1.5;
+      ctx2.beginPath(); ctx2.moveTo(pL,zY); ctx2.lineTo(pL+pw,zY); ctx2.stroke();
+
+      // Achsen
+      ctx2.strokeStyle='#374151'; ctx2.lineWidth=1.5;
+      ctx2.beginPath(); ctx2.moveTo(pL,pT); ctx2.lineTo(pL,pT+ph); ctx2.lineTo(pL+pw,pT+ph); ctx2.stroke();
+
+      // Titel + Legende oberhalb des Plots
+      ctx2.fillStyle='#e5e7eb'; ctx2.font='bold 12px system-ui'; ctx2.textAlign='left';
+      ctx2.fillText('Punkte je Kategorie (Summe über 8 Spiele)', 10, 16);
+      drawLegend(ctx2, 10, 26);
+
+      const catLabels=ROUND_NAMES;
+      const catCount=5, pCount=4;
+      const groupW=pw/catCount;
+      const barW=groupW*0.65/pCount;
+      const groupPad=groupW*0.175;
+
+      catTotals.forEach((playerVals, ci)=>{
+        const gx=pL+ci*groupW+groupPad;
+        const isBonus=(ci===4);
+
+        playerVals.forEach((val,pi)=>{
+          const bx=gx+pi*(barW+1);
+          const barTop=toY(Math.max(0,val));
+          const barBot=toY(Math.min(0,val));
+          const bh=Math.max(1,barBot-barTop);
+
+          // Balken mit leichter Transparenz-Variation
+          ctx2.fillStyle=colors[pi];
+          ctx2.globalAlpha=isBonus?1:0.82;
+          ctx2.fillRect(bx, barTop, barW, bh);
+          ctx2.globalAlpha=1;
+        });
+
+        // Kategorie-Label
+        ctx2.fillStyle=isBonus?'#86efac':'#fca5a5';
+        ctx2.font='10px system-ui'; ctx2.textAlign='center';
+        ctx2.fillText(catLabels[ci], pL+ci*groupW+groupW/2, pT+ph+16);
+        ctx2.fillStyle=isBonus?'#4ade80':'#f87171';
+        ctx2.font='bold 11px system-ui';
+        ctx2.fillText(isBonus?'(+)':'(−)', pL+ci*groupW+groupW/2, pT+ph+30);
+      });
+
+    })();
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────
+  renderRoundSection();
+  const prev=safeEl('prevGameBtn'); if(prev) prev.style.display='none';
+
+  // Versuche Session-Wiederherstellung
+  const saved = sessionLoad();
+  if(saved){
+    state = saved;
+    currentGame = Math.min(8, Math.max(1, state.currentGame||1));
+    seatLocked = currentGame > 1;
+    stateToForm();
+    updateSeatLock();
+    setStatus('good','Letzter Stand wiederhergestellt.');
+  } else {
+    setStatus('neutral','Bereit. Tipp: Nach dem Spielen JSON speichern!');
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
