@@ -1,7 +1,7 @@
 // Herzln Offline – Service Worker
 // Stale-while-revalidate: sofort aus dem Cache, im Hintergrund aktualisieren.
 // Bei Änderungen an der App CACHE-Version erhöhen.
-const CACHE = 'herzln-v5';
+const CACHE = 'herzln-v6';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './logo.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
 self.addEventListener('install', e => {
