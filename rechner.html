@@ -34,6 +34,13 @@
   .row{display:flex;gap:8px;margin-top:10px}
   .row button{flex:1;background:#374151}
   .legend{color:var(--muted);font-size:.8rem;margin-top:8px}
+  .modes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .mode{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 4px;text-align:center;min-height:auto;line-height:1.25}
+  .mode.on{border-color:var(--btn);box-shadow:inset 0 0 0 1px var(--btn)}
+  .mode .n{font-size:.75rem;color:var(--muted)}
+  .mode .v{font-size:1.7rem;font-weight:900;font-variant-numeric:tabular-nums}
+  .mode .c{font-size:.78rem;color:var(--good);font-variant-numeric:tabular-nums}
+  .mode .e{font-size:.7rem;color:var(--muted);font-variant-numeric:tabular-nums}
   .big{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .stat{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
   .stat .v{font-size:2rem;font-weight:900;font-variant-numeric:tabular-nums}
@@ -163,10 +170,8 @@
     <h2>Prognose</h2>
     <div id="empty">Wähle genau 9 Karten.</div>
     <div id="res" hidden>
-      <div class="big">
-        <div class="stat"><div class="v" id="prog">–</div><div class="l">Punkte erwartet</div></div>
-        <div class="stat good"><div class="v" id="p0">–</div><div class="l" id="p0l">Chance auf 0 Punkte</div></div>
-      </div>
+      <div class="modes" id="modes"></div>
+      <div class="muted" style="margin-top:6px">Schlecht = du legst zufällig erlaubte Karten · Faustregeln = einfache Strategie · Gut = jeder deiner Züge wird vorausgerechnet. Tippe eine Kachel für ihre Verteilung.</div>
       <div class="hist" id="hist"></div>
       <div class="muted" id="histL" style="text-align:center;margin-top:4px">Verteilung der Punkte</div>
       <h2 style="margin-top:16px" id="riskT">Stichgefahr pro Karte</h2>
@@ -177,6 +182,242 @@
   </div>
 </main>
 
+<script id="engine" type="text/plain">
+// ===== Spiel-Engine (läuft im Hintergrund-Worker) =====
+const HERZ = 2, OBER = 6, UNTER = 5, MATTL_HERZ = HERZ * 9 + 7, EICHEL_UNTER = UNTER;
+const suitOf = c => (c / 9) | 0, rankOf = c => c % 9;
+const PLACE_VALUES = [180, 120, 60, 0];
+const herzLead = (c, hand) => suitOf(c) !== HERZ || hand.every(x => suitOf(x) === HERZ);
+// cardPts/trickPts in 10er-Einheiten
+const RULES = {
+  stich: { kind: 'trick', cardPts: () => 0, trickPts: () => 1, canLead: () => true },
+  herz:  { kind: 'trick', cardPts: c => suitOf(c) === HERZ ? 1 : 0, canLead: herzLead },
+  ober:  { kind: 'trick', cardPts: c => rankOf(c) !== OBER ? 0 : suitOf(c) === HERZ ? 3 : 2, canLead: () => true,
+           isDone: pl => pl[6] && pl[15] && pl[24] && pl[33] },
+  mattl: { kind: 'trick', cardPts: c => c === MATTL_HERZ ? 9 : 0, canLead: herzLead, isDone: pl => pl[MATTL_HERZ] },
+  unter: { kind: 'lay' }
+};
+for (const R of Object.values(RULES))
+  if (R.kind === 'trick' && !R.trickPts) R.trickPts = tr => { let s = 0; for (const c of tr) s += R.cardPts(c); return s; };
+
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+
+// ---- Spielzustand ----
+function newState(gid, hands) {
+  const R = RULES[gid];
+  const s = { R, hands: hands.map(h => h.slice()), owner: new Int8Array(36), played: new Uint8Array(36),
+    forb: [0, 1, 2, 3].map(() => new Uint8Array(36)),            // öffentlich bekannt: p hat Karte c sicher nicht
+    pts: [0, 0, 0, 0], done: false, turn: 0, left: 36,
+    trick: [], leadSuit: -1, win: -1, winner: -1, lastTrick: null,
+    lo: new Int8Array(4).fill(-1), hi: new Int8Array(4).fill(-1), place: [-1, -1, -1, -1], nextPlace: 0, lastFinish: -1 };
+  for (let p = 0; p < 4; p++) for (const c of s.hands[p]) s.owner[c] = p;
+  s.turn = R.kind === 'trick' ? 0 : s.owner[EICHEL_UNTER];
+  return s;
+}
+function cloneState(s) {
+  return { R: s.R, hands: s.hands.map(h => h.slice()), owner: s.owner.slice(), played: s.played.slice(), forb: s.forb,
+    pts: s.pts.slice(), done: s.done, turn: s.turn, left: s.left,
+    trick: s.trick.slice(), leadSuit: s.leadSuit, win: s.win, winner: s.winner, lastTrick: null,
+    lo: s.lo.slice(), hi: s.hi.slice(), place: s.place.slice(), nextPlace: s.nextPlace, lastFinish: -1 };
+}
+// forb wird nur von apply() erweitert → in Rollouts nicht nötig, darum geteilt; im echten Spiel eigene Kopie
+function ownForb(s) { s.forb = s.forb.map(f => f.slice()); }
+
+function layLegal(s, c) {
+  if (s.left === 36) return c === EICHEL_UNTER;
+  const su = suitOf(c), r = rankOf(c);
+  return s.lo[su] < 0 ? r === UNTER : (r === s.lo[su] - 1 || r === s.hi[su] + 1);
+}
+function legalMoves(s, p) {
+  const h = s.hands[p];
+  if (s.R.kind === 'lay') return h.filter(c => layLegal(s, c));
+  if (!s.trick.length) return h.filter(c => s.R.canLead(c, h));
+  const f = h.filter(c => suitOf(c) === s.leadSuit);
+  return f.length ? f : h.slice();
+}
+function apply(s, c, track) {
+  const p = s.turn, h = s.hands[p];
+  h.splice(h.indexOf(c), 1); s.played[c] = 1; s.left--;
+  if (s.R.kind === 'trick') {
+    if (!s.trick.length) { s.leadSuit = suitOf(c); s.win = c; s.winner = p; }
+    else if (suitOf(c) !== s.leadSuit) { if (track) for (let x = s.leadSuit * 9; x < s.leadSuit * 9 + 9; x++) s.forb[p][x] = 1; }
+    else if (c > s.win) { s.win = c; s.winner = p; }
+    s.trick.push(c);
+    if (s.trick.length === 4) {
+      const pt = s.R.trickPts(s.trick); s.pts[s.winner] += pt;
+      s.lastTrick = { winner: s.winner, win: s.win, pts: pt };
+      s.trick = []; s.turn = s.winner;
+      if (s.left === 0 || (s.R.isDone && s.R.isDone(s.played))) s.done = true;
+    } else { s.lastTrick = null; s.turn = (p + 1) & 3; }
+    return;
+  }
+  const su = suitOf(c), r = rankOf(c);
+  if (s.lo[su] < 0) { s.lo[su] = s.hi[su] = r; } else if (r < s.lo[su]) s.lo[su] = r; else s.hi[su] = r;
+  s.lastFinish = -1;
+  if (!h.length) { s.place[p] = s.nextPlace++; s.lastFinish = p; }
+  if (s.left === 0) { s.done = true; return; }
+  let q = p;
+  for (let i = 0; i < 4; i++) {
+    q = (q + 1) & 3;
+    const hq = s.hands[q]; if (!hq.length) continue;
+    let can = false; for (const x of hq) if (layLegal(s, x)) { can = true; break; }
+    if (can) { s.turn = q; return; }
+    if (track) for (let x = 0; x < 36; x++) if (!s.played[x] && layLegal(s, x)) s.forb[q][x] = 1;   // Passen verrät: keine passende Karte
+  }
+  s.done = true;
+}
+function utility(s, p) { return s.R.kind === 'lay' ? PLACE_VALUES[s.place[p]] : -s.pts[p] * 10; }
+
+// ---- Faustregeln (alle Spieler) ----
+function lowerOut(s, p, c) { let n = 0; for (let x = c - rankOf(c); x < c; x++) if (!s.played[x] && s.owner[x] !== p) n++; return n; }
+function higherOut(s, p, c) { let n = 0, top = c - rankOf(c) + 9; for (let x = c + 1; x < top; x++) if (!s.played[x] && s.owner[x] !== p) n++; return n; }
+function heurTrick(s, p) {
+  const R = s.R, h = s.hands[p];
+  if (!s.trick.length) {
+    // niedrig ausspielen; sichere Stiche und eigene Strafkarten meiden
+    let best = -1, bs = Infinity;
+    for (const c of h) {
+      if (!R.canLead(c, h)) continue;
+      const L = lowerOut(s, p, c), H = higherOut(s, p, c);
+      let sc = H === 0 ? 1000 + L * 10 + rankOf(c) : L * 10 - H;
+      sc += R.cardPts(c) * 30;
+      if (sc < bs) { bs = sc; best = c; }
+    }
+    return best;
+  }
+  const last = s.trick.length === 3;
+  let under = -1, any = false, lo = -1, hi = -1, loSafe = -1, hiSafe = -1;
+  for (const c of h) {
+    if (suitOf(c) !== s.leadSuit) continue; any = true;
+    if (c < s.win && c > under) under = c;
+    if (lo < 0 || c < lo) lo = c;
+    if (c > hi) hi = c;
+    if (R.cardPts(c) === 0) { if (loSafe < 0 || c < loSafe) loSafe = c; if (c > hiSafe) hiSafe = c; }
+  }
+  if (any) {
+    if (under >= 0 && R.cardPts(under) > 0) return under;                    // Strafkarte drunter schenken
+    if (last && hiSafe >= 0 && R.trickPts(s.trick) === 0) return hiSafe;      // harmloser Stich → hohe Karte los
+    if (under >= 0) return under;
+    return last ? (hiSafe >= 0 ? hiSafe : hi) : (loSafe >= 0 ? loSafe : lo);
+  }
+  let best = -1, bd = -Infinity;                                               // Fremd: teuerste/gefährlichste Karte
+  for (const c of h) { const d = R.cardPts(c) * 1000 + lowerOut(s, p, c) * 10 + rankOf(c); if (d > bd) { bd = d; best = c; } }
+  return best;
+}
+function heurLay(s, p) {
+  const lm = legalMoves(s, p); if (lm.length === 1) return lm[0];
+  let best = lm[0], bs = -Infinity;
+  for (const c of lm) {
+    const su = suitOf(c), r = rankOf(c), base = su * 9;
+    let a, b;
+    if (s.lo[su] < 0) { a = 0; b = 8; } else if (r < s.lo[su]) { a = 0; b = r - 1; } else { a = r + 1; b = 8; }
+    let own = 0, opp = 0;
+    for (let x = a; x <= b; x++) { if (x === r || s.played[base + x]) continue; if (s.owner[base + x] === p) own++; else opp++; }
+    let sc = own * 10 - opp;
+    if (own + opp === 0) sc += 3;
+    const next = s.lo[su] < 0 ? -1 : (r < s.lo[su] ? r - 1 : r + 1);
+    if (next >= 0 && next <= 8 && s.owner[base + next] === p) sc += 5;
+    if (sc > bs) { bs = sc; best = c; }
+  }
+  return best;
+}
+const heuristic = (s, p) => s.R.kind === 'trick' ? heurTrick(s, p) : heurLay(s, p);
+function randomMove(s, p) { const lm = legalMoves(s, p); return lm[(Math.random() * lm.length) | 0]; }
+function playout(s) { while (!s.done) apply(s, heuristic(s, s.turn), false); }
+
+// ---- „Gut gespielt“: jeden eigenen Zug vorausrechnen ----
+// Die unbekannten Gegnerkarten werden K-mal neu verteilt (passend zu allem, was man gesehen hat:
+// gespielte Karten, Fehlfarben, Passen), jede erlaubte Karte wird darauf zu Ende gespielt, die beste gewinnt.
+function determinize(s, me) {
+  const t = cloneState(s);
+  const others = [0, 1, 2, 3].filter(p => p !== me);
+  const pool = [], need = [0, 0, 0, 0];
+  for (const p of others) { need[p] = t.hands[p].length; for (const c of t.hands[p]) pool.push(c); }
+  for (let attempt = 0; attempt < 30; attempt++) {
+    shuffle(pool);
+    const elig = pool.map(c => others.filter(p => !s.forb[p][c]));
+    const order = pool.map((_, i) => i).sort((a, b) => elig[a].length - elig[b].length);
+    const cap = need.slice(), assign = new Int8Array(36);
+    let ok = true;
+    for (const i of order) {
+      const e = elig[i].filter(p => cap[p] > 0);
+      if (!e.length) { ok = false; break; }
+      let tot = 0; for (const p of e) tot += cap[p];
+      let r = Math.random() * tot, pick = e[e.length - 1];
+      for (const p of e) { r -= cap[p]; if (r < 0) { pick = p; break; } }
+      assign[pool[i]] = pick; cap[pick]--;
+    }
+    if (ok) {
+      for (const p of others) t.hands[p] = [];
+      for (const c of pool) { t.hands[assign[c]].push(c); t.owner[c] = assign[c]; }
+      return t;
+    }
+  }
+  return t;   // Notfall: echte Verteilung (erfüllt alle Bedingungen)
+}
+function goodMove(s, me, K) {
+  const lm = legalMoves(s, me);
+  if (lm.length === 1) return lm[0];
+  const hc = heuristic(s, me), h = lm.indexOf(hc), u = lm.map(() => new Float64Array(K));
+  for (let k = 0; k < K; k++) {
+    const d = determinize(s, me);
+    for (let i = 0; i < lm.length; i++) { const t = cloneState(d); apply(t, lm[i], false); playout(t); u[i][k] = utility(t, me); }
+  }
+  // Von der Faustregel nur abweichen, wenn eine Karte auf denselben Gegnerhänden klar besser ist
+  // (gepaarter Vergleich, einseitig ~95 %); sonst würde der Zufall der Vorausrechnung den Zug bestimmen.
+  let best = hc, bv = 0;
+  for (let i = 0; i < lm.length; i++) {
+    if (i === h) continue;
+    let m = 0, q = 0;
+    for (let k = 0; k < K; k++) { const x = u[i][k] - u[h][k]; m += x; q += x * x; }
+    m /= K;
+    const se = Math.sqrt(Math.max(0, q / K - m * m) / K);
+    if (m > 1.65 * se && m > bv) { bv = m; best = lm[i]; }
+  }
+  return best;
+}
+
+// ---- Simulation ----
+function emptyAcc() { return { n: 0, dist: new Float64Array(10), sum: 0, sumsq: 0, cardStat: new Float64Array(36) }; }
+function runDeals(acc, gid, cards, seat, n, mode, K, withStats) {
+  const lay = RULES[gid].kind === 'lay', me = lay ? 0 : seat;
+  const mine = new Set(cards), rest = [];
+  for (let c = 0; c < 36; c++) if (!mine.has(c)) rest.push(c);
+  for (let g = 0; g < n; g++) {
+    shuffle(rest);
+    const hands = []; let k = 0;
+    for (let p = 0; p < 4; p++) if (p === me) hands.push(cards.slice()); else { hands.push(rest.slice(k, k + 9)); k += 9; }
+    const s = newState(gid, hands);
+    if (mode === 'good') ownForb(s);
+    while (!s.done) {
+      const p = s.turn;
+      const c = p !== me ? heuristic(s, p) : mode === 'bad' ? randomMove(s, p) : mode === 'good' ? goodMove(s, p, K) : heuristic(s, p);
+      apply(s, c, mode === 'good');
+      if (withStats) {
+        if (!lay && s.lastTrick && s.lastTrick.winner === me) acc.cardStat[s.lastTrick.win] += s.lastTrick.pts;
+        if (lay && s.lastFinish === me) acc.cardStat[c]++;
+      }
+    }
+    const b = lay ? s.place[me] : s.pts[me], v = lay ? PLACE_VALUES[b] : b * 10;
+    acc.dist[b]++; acc.sum += v; acc.sumsq += v * v; acc.n++;
+  }
+  return acc;
+}
+</script>
+<script id="workerMain" type="text/plain">
+const FAST_N = 20000, GOOD_N = 2000, GOOD_K = 16, BATCH = 20;
+onmessage = e => {
+  const { gid, cards, seat } = e.data;
+  const normal = runDeals(emptyAcc(), gid, cards, seat, FAST_N, 'normal', 0, true);
+  const bad = runDeals(emptyAcc(), gid, cards, seat, FAST_N, 'bad', 0, false);
+  postMessage({ type: 'fast', normal, bad });
+  const good = emptyAcc();
+  while (good.n < GOOD_N) {
+    runDeals(good, gid, cards, seat, BATCH, 'good', GOOD_K, false);
+    postMessage({ type: 'good', good, target: GOOD_N });
+  }
+};
+</script>
 <script>
 // ---- Karten ----
 const SUITS = ['eichel','laub','herz','schellen'];
@@ -187,200 +428,25 @@ const suitOf = c => (c / 9) | 0, rankOf = c => c % 9;
 const cardName = c => SUITNAME[SUITS[suitOf(c)]] + ' ' + RANKNAME[rankOf(c)];
 const icon = s => `<svg class="suit" viewBox="0 0 100 100"><use href="#lg-${SUITS[s]}"/></svg>`;
 
-// ---- Spiele ----
-// cardPts(c):  Strafpunkte einer Karte (in 10er-Einheiten); trickPts(trick): für den Stich-Nehmer
-const HERZ = 2, OBER = 6, MATTL_HERZ = HERZ * 9 + 7;
-const sumPts = G => tr => tr.reduce((s, c) => s + G.cardPts(c), 0);
+// ---- Spiele (Anzeige) ----
 const GAMES = {
-  stich: {
-    cardPts: () => 0,
-    trickPts: () => 1,
-    canLead: () => true,
-    chipMode: 'pct',
-    riskTitle: 'Stichgefahr pro Karte',
-    help: '10 Punkte pro Stich.',
-    riskDesc: 'Wie oft genau diese Karte einen Stich für dich holt'
-  },
-  herz: {
-    cardPts: c => suitOf(c) === HERZ ? 1 : 0,
-    canLead: (c, hand) => suitOf(c) !== HERZ || hand.every(x => suitOf(x) === HERZ),
-    chipMode: 'pts',
-    help: '10 Punkte pro Herz-Karte in deinen Stichen. Herz darf erst ausgespielt werden, wenn man nur mehr Herz hat.',
-    riskDesc: 'Wie viele Punkte dir diese Karte im Schnitt einbringt (Herz in den Stichen, die sie gewinnt)'
-  },
-  ober: {
-    cardPts: c => rankOf(c) !== OBER ? 0 : suitOf(c) === HERZ ? 3 : 2,
-    canLead: () => true,
-    isDone: played => played[6] && played[15] && played[24] && played[33],
-    chipMode: 'pts',
-    help: '20 Punkte pro Ober in deinen Stichen, Herz-Ober 30. Das Spiel endet, sobald alle Ober gefallen sind.',
-    riskDesc: 'Wie viele Punkte dir diese Karte im Schnitt einbringt (Ober in den Stichen, die sie gewinnt)'
-  },
-  mattl: {
-    cardPts: c => c === MATTL_HERZ ? 9 : 0,
-    canLead: (c, hand) => suitOf(c) !== HERZ || hand.every(x => suitOf(x) === HERZ),
-    isDone: played => played[MATTL_HERZ],
-    chipMode: 'pts',
-    help: 'Nur der Herz-Mattl zählt: 90 Punkte für den, der ihn im Stich hat. Herz darf erst ausgespielt werden, wenn man nur mehr Herz hat. Das Spiel endet, sobald der Mattl fällt.',
-    riskDesc: 'Wie viele Punkte dir diese Karte im Schnitt einbringt (der Mattl in den Stichen, die sie gewinnt)'
-  }
+  stich: { chip: 'pct', riskTitle: 'Stichgefahr pro Karte', riskDesc: 'Wie oft genau diese Karte einen Stich für dich holt',
+           help: '10 Punkte pro Stich.' },
+  herz:  { chip: 'pts', riskTitle: 'Punkte pro Karte', riskDesc: 'Wie viele Punkte dir diese Karte im Schnitt einbringt (Herz in den Stichen, die sie gewinnt)',
+           help: '10 Punkte pro Herz-Karte in deinen Stichen. Herz darf erst ausgespielt werden, wenn man nur mehr Herz hat.' },
+  ober:  { chip: 'pts', riskTitle: 'Punkte pro Karte', riskDesc: 'Wie viele Punkte dir diese Karte im Schnitt einbringt (Ober in den Stichen, die sie gewinnt)',
+           help: '20 Punkte pro Ober in deinen Stichen, Herz-Ober 30. Das Spiel endet, sobald alle Ober gefallen sind.' },
+  mattl: { chip: 'pts', riskTitle: 'Punkte pro Karte', riskDesc: 'Wie viele Punkte dir diese Karte im Schnitt einbringt (der Mattl in den Stichen, die sie gewinnt)',
+           help: 'Nur der Herz-Mattl zählt: 90 Punkte für den, der ihn im Stich hat. Herz darf erst ausgespielt werden, wenn man nur mehr Herz hat. Das Spiel endet, sobald der Mattl fällt.' },
+  unter: { chip: 'pct', riskTitle: 'Bremskarten', riskDesc: 'Wie oft diese Karte deine letzte ist, also dich am längsten aufhält',
+           values: [180, 120, 60, 0], goodLbl: '180 P', noSeat: true, histLabel: 'Verteilung der Punkte (Platz 1 bis 4)',
+           help: 'Anlegen ab Eichel-Unter, reihum, mit Zugzwang. Platz 1: 180, Platz 2: 120, Platz 3: 60, Letzter: 0 Punkte. Wer den Eichel-Unter hat, beginnt, deshalb spielt die Position hier keine Rolle.' }
 };
-for (const G of Object.values(GAMES)) if (!G.trickPts) G.trickPts = sumPts(G);
+const MODES = [['bad', 'Schlecht gespielt'], ['normal', 'Faustregeln'], ['good', 'Gut gespielt']];
 
-// ---- Simulation ----
-// Alle Spieler folgen derselben Heuristik:
-//  Ausspielen: Karte, unter die möglichst wenig unbekannte Karten passen (niedrig ausspielen);
-//              eigene Strafkarten nur ausspielen, wenn es nicht anders geht.
-//  Bedienen:   ist die Karte knapp unter dem Stich eine Strafkarte → drunter dazugeben (dem Gewinner schenken);
-//              als Letzter in einem harmlosen Stich die höchste straffreie Karte loswerden;
-//              sonst höchste Karte unter dem Stich (drunterbleiben); muss man drüber: straffreie Karte,
-//              als Letzter die höchste, sonst die niedrigste (Chance, dass wer drüber muss).
-//  Abwerfen:   zuerst die teuerste Strafkarte; sonst die gefährlichste Karte
-//              (viele unbekannte niedrigere in der Farbe, hoher Rang).
-function simulate(gameId, myCards, mySeat, N) {
-  const G = GAMES[gameId];
-  const mine = new Set(myCards);
-  const rest = []; for (let c = 0; c < 36; c++) if (!mine.has(c)) rest.push(c);
-  const dist = new Float64Array(10), cardWins = new Float64Array(36);
-  const owner = new Int8Array(36), played = new Uint8Array(36);
-  const hands = [[], [], [], []];
-
-  // unbekannte (nicht gespielte, nicht eigene) Karten unter / über c aus Sicht von p
-  const lowerOut = (p, c) => { let n = 0; for (let x = c - rankOf(c); x < c; x++) if (!played[x] && owner[x] !== p) n++; return n; };
-  const higherOut = (p, c) => { let n = 0, top = c - rankOf(c) + 9; for (let x = c + 1; x < top; x++) if (!played[x] && owner[x] !== p) n++; return n; };
-
-  function chooseLead(p) {
-    const h = hands[p]; let best = -1, bs = Infinity;
-    for (const c of h) {
-      if (!G.canLead(c, h)) continue;
-      const L = lowerOut(p, c), H = higherOut(p, c);
-      let s = H === 0 ? 1000 + L * 10 + rankOf(c) : L * 10 - H;   // H=0 → sicherer Stich
-      s += G.cardPts(c) * 30;
-      if (s < bs) { bs = s; best = c; }
-    }
-    return best;
-  }
-  function chooseFollow(p, leadSuit, winCard, last, trick) {
-    const h = hands[p]; let under = -1, any = false;
-    let lo = -1, hi = -1, loSafe = -1, hiSafe = -1;
-    for (const c of h) {
-      if (suitOf(c) !== leadSuit) continue; any = true;
-      if (c < winCard && c > under) under = c;
-      if (lo < 0 || c < lo) lo = c;
-      if (c > hi) hi = c;
-      if (G.cardPts(c) === 0) { if (loSafe < 0 || c < loSafe) loSafe = c; if (c > hiSafe) hiSafe = c; }
-    }
-    if (any) {
-      if (under >= 0 && G.cardPts(under) > 0) return under;                     // Strafkarte drunter schenken
-      if (last && hiSafe >= 0 && G.trickPts(trick) === 0) return hiSafe;        // harmloser Stich → hohe Karte los
-      if (under >= 0) return under;
-      return last ? (hiSafe >= 0 ? hiSafe : hi) : (loSafe >= 0 ? loSafe : lo);   // muss drüber
-    }
-    // Fremd abwerfen: teuerste Strafkarte, sonst gefährlichste Karte
-    let best = -1, bd = -Infinity;
-    for (const c of h) { const d = G.cardPts(c) * 1000 + lowerOut(p, c) * 10 + rankOf(c); if (d > bd) { bd = d; best = c; } }
-    return best;
-  }
-
-  for (let g = 0; g < N; g++) {
-    for (let i = rest.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = rest[i]; rest[i] = rest[j]; rest[j] = t; }
-    let k = 0;
-    for (let p = 0; p < 4; p++) {
-      if (p === mySeat) hands[p] = myCards.slice();
-      else { hands[p] = rest.slice(k, k + 9); k += 9; }
-      for (const c of hands[p]) owner[c] = p;
-    }
-    played.fill(0);
-    let leader = 0, myPts = 0;
-    for (let t = 0; t < 9; t++) {
-      let win = -1, winner = -1, leadSuit = -1;
-      const trick = [];
-      for (let i = 0; i < 4; i++) {
-        const p = (leader + i) & 3;
-        const c = i === 0 ? chooseLead(p) : chooseFollow(p, leadSuit, win, i === 3, trick);
-        const h = hands[p]; h.splice(h.indexOf(c), 1); played[c] = 1; trick.push(c);
-        if (i === 0) { leadSuit = suitOf(c); win = c; winner = p; }
-        else if (suitOf(c) === leadSuit && c > win) { win = c; winner = p; }
-      }
-      if (winner === mySeat) { const pt = G.trickPts(trick); myPts += pt; cardWins[win] += G.chipMode === 'pct' ? 1 : pt; }
-      leader = winner;
-      if (G.isDone && G.isDone(played)) break;
-    }
-    dist[myPts]++;
-  }
-  let e = 0; for (let i = 0; i < 10; i++) { dist[i] /= N; e += i * dist[i]; }
-  for (let c = 0; c < 36; c++) cardWins[c] /= N;
-  return { dist, expTricks: e, cardWins };
-}
-
-// ---- Spiel 5: Unter (Anlegen) ----
-// Start mit Eichel-Unter (wer ihn hat, beginnt), dann reihum. Angelegt wird in einer Farbe direkt
-// unter der niedrigsten oder über der höchsten liegenden Karte; ein Unter eröffnet eine neue Farbe.
-// Zugzwang: wer kann, muss anlegen. Platz 1/2/3/4 = 180/120/60/0 Punkte.
-// Strategie aller Spieler: die Karte, hinter der möglichst viele eigene und wenig fremde Karten
-// liegen (eigene Reihen öffnen, Gegner-Reihen blockieren); Endkarten (6, Sau) sind harmlos.
-const UNTER = 5, EICHEL_UNTER = 0 * 9 + UNTER;
-GAMES.unter = {
-  sim: simulateUnter,
-  noSeat: true,
-  chipMode: 'pct',
-  riskTitle: 'Bremskarten',
-  riskDesc: 'Wie oft diese Karte deine letzte ist, also dich am längsten aufhält',
-  goodLabel: 'Chance auf 180 Punkte (Platz 1)',
-  histLabel: 'Verteilung der Punkte (Platz 1 bis 4)',
-  help: 'Anlegen ab Eichel-Unter, reihum, mit Zugzwang. Platz 1: 180, Platz 2: 120, Platz 3: 60, Letzter: 0 Punkte. Wer den Eichel-Unter hat, beginnt, deshalb spielt die Position hier keine Rolle.'
-};
-function simulateUnter(myCards, N) {
-  const mine = new Set(myCards);
-  const rest = []; for (let c = 0; c < 36; c++) if (!mine.has(c)) rest.push(c);
-  const dist = new Float64Array(4), lastCard = new Float64Array(36);
-  const owner = new Int8Array(36), lo = new Int8Array(4), hi = new Int8Array(4);
-  const hands = [[], [], [], []];
-  const legal = c => { const s = suitOf(c), r = rankOf(c); return lo[s] < 0 ? r === UNTER : (r === lo[s] - 1 || r === hi[s] + 1); };
-  function score(p, c) {
-    const s = suitOf(c), r = rankOf(c), base = s * 9;
-    let a, b;                                             // Bereich der Karten, die c freigibt
-    if (lo[s] < 0) { a = 0; b = 8; } else if (r < lo[s]) { a = 0; b = r - 1; } else { a = r + 1; b = 8; }
-    let own = 0, opp = 0;
-    for (let x = a; x <= b; x++) { if (x === r) continue; if (owner[base + x] === p) own++; else opp++; }
-    let sc = own * 10 - opp;
-    if (own + opp === 0) sc += 3;                         // Endkarte: hilft niemandem
-    const next = lo[s] < 0 ? -1 : (r < lo[s] ? r - 1 : r + 1);
-    if (next >= 0 && next <= 8 && owner[base + next] === p) sc += 5;
-    return sc;
-  }
-  function play(p, c) {
-    const h = hands[p]; h.splice(h.indexOf(c), 1);
-    const s = suitOf(c), r = rankOf(c);
-    if (lo[s] < 0) { lo[s] = hi[s] = r; } else if (r < lo[s]) lo[s] = r; else hi[s] = r;
-  }
-  for (let g = 0; g < N; g++) {
-    for (let i = rest.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = rest[i]; rest[i] = rest[j]; rest[j] = t; }
-    hands[0] = myCards.slice();
-    for (let p = 1; p < 4; p++) hands[p] = rest.slice((p - 1) * 9, p * 9);
-    for (let p = 0; p < 4; p++) for (const c of hands[p]) owner[c] = p;
-    lo.fill(-1); hi.fill(-1);
-    let p = owner[EICHEL_UNTER], place = 0, myPlace = 3, left = 36;
-    play(p, EICHEL_UNTER); left--;
-    while (left > 0) {
-      p = (p + 1) & 3;
-      const h = hands[p]; if (!h.length) continue;
-      let best = -1, bs = -Infinity;
-      for (const c of h) if (legal(c)) { const sc = score(p, c); if (sc > bs) { bs = sc; best = c; } }
-      if (best < 0) continue;                             // kann nicht anlegen → aussetzen
-      play(p, best); left--;
-      if (!h.length) {
-        if (p === 0) { myPlace = place; lastCard[best]++; }
-        place++;
-      }
-    }
-    dist[myPlace]++;
-  }
-  const values = [180, 120, 60, 0];
-  let e = 0; for (let i = 0; i < 4; i++) { dist[i] /= N; e += values[i] * dist[i]; }
-  for (let c = 0; c < 36; c++) lastCard[c] /= N;
-  return { dist, values, expPts: e, cardWins: lastCard };
-}
+const workerUrl = URL.createObjectURL(new Blob(
+  [document.getElementById('engine').textContent, '\n', document.getElementById('workerMain').textContent],
+  { type: 'text/javascript' }));
 
 // ---- UI ----
 const state = { cards: new Set(), seat: 0, game: 'stich' };
@@ -409,40 +475,73 @@ function render() {
   compute();
 }
 
-let timer = 0;
+let worker = null, job = null, sel = 'good';
+function stopWorker() { if (worker) { worker.terminate(); worker = null; } }
 function compute() {
+  stopWorker();
   const res = document.getElementById('res'), empty = document.getElementById('empty');
-  if (state.cards.size !== 9) { res.hidden = true; empty.hidden = false; empty.textContent = 'Wähle genau 9 Karten (' + state.cards.size + '/9).'; return; }
-  empty.hidden = false; empty.textContent = 'rechne …';
-  clearTimeout(timer);
-  timer = setTimeout(() => {
-    const N = 20000, t0 = performance.now();
-    const cards = [...state.cards].sort((a, b) => a - b);
-    const G = GAMES[state.game];
-    const r = G.sim ? G.sim(cards, N) : simulate(state.game, cards, state.seat, N);
-    const values = r.values || [...r.dist].map((_, i) => i * 10);
-    const exp = r.expPts != null ? r.expPts : r.expTricks * 10;
-    document.getElementById('riskT').textContent = G.riskTitle || 'Punkte pro Karte';
-    document.getElementById('p0l').textContent = G.goodLabel || 'Chance auf 0 Punkte';
-    document.getElementById('histL').textContent = G.histLabel || 'Verteilung der Punkte';
-    document.getElementById('riskD').textContent = G.riskDesc;
-    const ms = Math.round(performance.now() - t0);
-    document.getElementById('prog').textContent = Math.round(exp);
-    document.getElementById('p0').textContent = Math.round(r.dist[0] * 100) + ' %';
-    const max = Math.max(...r.dist);
-    document.getElementById('hist').innerHTML = [...r.dist].map((p, i) => {
-      const pct = p * 100, lbl = pct >= 0.5 ? Math.round(pct) + '%' : (p > 0 ? '<1%' : '');
-      return `<div>${lbl}<span class="b${i === 0 ? ' z' : ''}" style="height:${max ? p / max * 85 : 0}%"></span><span class="x">${values[i]}</span></div>`;
-    }).join('');
-    document.getElementById('risk').innerHTML = cards
-      .map(c => [c, r.cardWins[c]]).sort((a, b) => b[1] - a[1])
-      .map(([c, p]) => `<span class="chip ${p >= .5 ? 'hot' : p >= .15 ? 'mid' : ''}" title="${cardName(c)}"><svg viewBox="0 0 100 100"><use href="#lg-${SUITS[suitOf(c)]}"/></svg>${RANKS[rankOf(c)]} · ${G.chipMode === 'pct' ? Math.round(p * 100) + ' %' : 'Ø ' + (p * 10).toLocaleString('de-AT', { maximumFractionDigits: 1 }) + ' P'}</span>`)
-      .join('');
-    document.getElementById('meta').textContent = `${N.toLocaleString('de-AT')} zufällige Verteilungen der übrigen 27 Karten, ${ms} ms. Alle spielen nach derselben einfachen Strategie, die Zahlen sind also Richtwerte.`;
-    empty.hidden = true; res.hidden = false;
-  }, 30);
+  if (state.cards.size !== 9) { job = null; res.hidden = true; empty.hidden = false; empty.textContent = 'Wähle genau 9 Karten (' + state.cards.size + '/9).'; return; }
+  res.hidden = true; empty.hidden = false; empty.textContent = 'rechne …';
+  const cards = [...state.cards].sort((a, b) => a - b);
+  job = { gid: state.game, cards, seat: state.seat, bad: null, normal: null, good: null, target: 0, t0: performance.now(), fastMs: 0 };
+  const my = job;
+  worker = new Worker(workerUrl);
+  worker.onmessage = e => {
+    if (job !== my) return;
+    const m = e.data;
+    if (m.type === 'fast') { my.bad = m.bad; my.normal = m.normal; my.fastMs = Math.round(performance.now() - my.t0); }
+    else { my.good = m.good; my.target = m.target; if (m.good.n >= m.target) { my.goodMs = Math.round(performance.now() - my.t0); stopWorker(); } }
+    draw();
+  };
+  worker.onerror = err => { empty.hidden = false; empty.textContent = 'Fehler: ' + err.message; };
+  worker.postMessage({ gid: my.gid, cards: my.cards, seat: my.seat });
 }
 
+const fmt = (x, d = 0) => x.toLocaleString('de-AT', { maximumFractionDigits: d, minimumFractionDigits: d });
+function draw() {
+  if (!job || !job.normal) return;
+  const G = GAMES[job.gid], values = G.values || [0, 10, 20, 30, 40, 50, 60, 70, 80, 90];
+  const goodLbl = G.goodLbl || '0 P';
+  // Kacheln
+  document.getElementById('modes').innerHTML = MODES.map(([m, name]) => {
+    const a = job[m];
+    if (!a || !a.n) return `<button class="mode${sel === m ? ' on' : ''}" data-m="${m}"><div class="n">${name}</div><div class="v">…</div><div class="c">rechnet</div></button>`;
+    const mean = a.sum / a.n, chance = a.dist[0] / a.n;
+    let extra = '';
+    if (m === 'good') {
+      const sd = Math.sqrt(Math.max(0, a.sumsq / a.n - mean * mean)), ci = 1.96 * sd / Math.sqrt(a.n);
+      extra = `<div class="e">±${fmt(ci)} · ${a.n < job.target ? fmt(a.n) + '/' + fmt(job.target) : 'fertig'}</div>`;
+    }
+    return `<button class="mode${sel === m ? ' on' : ''}" data-m="${m}"><div class="n">${name}</div><div class="v">${fmt(mean)}</div><div class="c">${goodLbl}: ${fmt(chance * 100)} %</div>${extra}</button>`;
+  }).join('');
+  // Histogramm des gewählten Modus
+  const a = (job[sel] && job[sel].n) ? job[sel] : job.normal;
+  const dist = [...a.dist].slice(0, values.length).map(x => x / a.n);
+  const max = Math.max(...dist);
+  document.getElementById('hist').innerHTML = dist.map((p, i) => {
+    const pct = p * 100, lbl = pct >= 0.5 ? Math.round(pct) + '%' : (p > 0 ? '<1%' : '');
+    return `<div>${lbl}<span class="b${i === 0 ? ' z' : ''}" style="height:${max ? p / max * 85 : 0}%"></span><span class="x">${values[i]}</span></div>`;
+  }).join('');
+  const modeName = MODES.find(x => x[0] === (a === job.normal ? 'normal' : sel))[1];
+  document.getElementById('histL').textContent = (G.histLabel || 'Verteilung der Punkte') + ' · ' + modeName;
+  // Karten-Chips (Faustregeln)
+  document.getElementById('riskT').textContent = G.riskTitle;
+  document.getElementById('riskD').textContent = G.riskDesc + ' · bei Faustregel-Spiel';
+  const N = job.normal.n;
+  document.getElementById('risk').innerHTML = job.cards
+    .map(c => [c, job.normal.cardStat[c] / N]).sort((x, y) => y[1] - x[1])
+    .map(([c, p]) => `<span class="chip ${p >= .5 ? 'hot' : p >= .15 ? 'mid' : ''}" title="${cardName(c)}"><svg viewBox="0 0 100 100"><use href="#lg-${SUITS[suitOf(c)]}"/></svg>${RANKS[rankOf(c)]} · ${G.chip === 'pct' ? Math.round(p * 100) + ' %' : 'Ø ' + fmt(p * 10, 1) + ' P'}</span>`)
+    .join('');
+  document.getElementById('meta').textContent =
+    `Schlecht und Faustregeln: je ${fmt(N)} zufällige Verteilungen (${fmt(job.fastMs)} ms). ` +
+    `Gut gespielt: ${fmt(job.good ? job.good.n : 0)} Verteilungen, dabei wird jeder deiner Züge mit 16 möglichen Gegnerhänden vorausgerechnet` +
+    (job.goodMs ? ` (${fmt(job.goodMs / 1000, 1)} s)` : '') + '. Die Gegner spielen immer nach Faustregeln.';
+  document.getElementById('empty').hidden = true; document.getElementById('res').hidden = false;
+}
+
+document.getElementById('modes').addEventListener('click', e => {
+  const b = e.target.closest('.mode'); if (!b) return; sel = b.dataset.m; draw();
+});
 grid.addEventListener('click', e => {
   const b = e.target.closest('.k'); if (!b) return;
   const c = +b.dataset.c;
