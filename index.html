@@ -227,14 +227,13 @@
     <div id="roundArea"></div>
     <div class="gstats"><div style="font-weight:700;margin:0 0 6px;color:#fde68a">Punkte</div><div id="gameStats"></div></div>
     <button id="cerBtn" type="button" hidden>🏆 Siegerehrung</button>
+    <button id="downloadCsvBtn" type="button" class="secondary" hidden style="margin-top:6px">⬇ CSV exportieren</button>
   </div>
 
 </div>
 
 <div class="bar">
-  <button id="saveJsonBtn" type="button" class="secondary" title="Speichern (JSON)" aria-label="Speichern">💾</button>
-  <button id="loadJsonBtn" type="button" class="secondary" title="Laden (JSON)" aria-label="Laden">📂</button>
-  <button id="downloadCsvBtn" type="button" class="secondary" title="CSV exportieren" aria-label="CSV exportieren">⬇</button>
+  <button id="calcBtn" type="button" class="secondary" title="Gewinnchance-Rechner" aria-label="Gewinnchance-Rechner" onclick="location.href='rechner.html'">🎲 Rechner</button>
   <span class="sep"></span>
   <button id="prevGameBtn" type="button" class="arrow" aria-label="Vorheriges Spiel">←</button>
   <button id="nextGameBtn" type="button" class="arrow" aria-label="Nächstes Spiel">→</button>
@@ -255,7 +254,8 @@
     <textarea id="csvPreview" readonly style="width:100%;min-height:220px;border-radius:12px;border:1px solid var(--line);background:#0b1220;color:#e5e7eb;padding:12px;font-family:ui-monospace,monospace;font-size:.85rem;"></textarea>
   </div>
   <div class="card nav">
-    <button id="calcBtn" type="button" class="secondary" onclick="location.href='rechner.html'">🎲 Gewinnchance-Rechner</button>
+    <button id="saveJsonBtn" type="button" class="secondary" title="Speichern (JSON)">💾 Speichern</button>
+    <button id="loadJsonBtn" type="button" class="secondary" title="Laden (JSON)">📂 Laden</button>
     <button id="installBtn" type="button" hidden>📲 App installieren</button>
     <button id="wakeBtn" type="button">🔆 Bildschirm bleibt an: EIN</button>
     <button id="forgetNamesBtn" type="button" class="secondary">Gemerkte Namen vergessen</button>
@@ -589,6 +589,7 @@
     csvPreview.value=buildCsv();
     renderPlayerList(names,arr);
     validateNow();
+    $('downloadCsvBtn').hidden = currentGame!==8;
     $('cerBtn').hidden = !(currentGame===8 && val.statusArr.every(x=>x.sum===90) && val.r5ok && val.r5sum===360);
     drawCharts(names, state.games);
   }
