@@ -1,9 +1,9 @@
 // Herzln Offline – Service Worker
-// App-Seite (index.html): Netzwerk zuerst, damit Updates sofort beim ersten Öffnen da sind;
+// App-Seiten (index.html, rechner.html): Netzwerk zuerst, damit Updates sofort beim ersten Öffnen da sind;
 // offline aus dem Cache. Übrige Dateien (Icons, Manifest): sofort aus dem Cache, im Hintergrund aktualisieren.
 // Bei Änderungen an der App CACHE-Version erhöhen.
-const CACHE = 'herzln-v8';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './logo.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
+const CACHE = 'herzln-v9';
+const ASSETS = ['./', './index.html', './rechner.html', './manifest.webmanifest', './logo.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));

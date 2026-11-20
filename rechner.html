@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Herzln-Rechner</title>
+<meta name="theme-color" content="#111827" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" type="image/svg+xml" href="logo.svg" />
+<link rel="icon" type="image/png" href="icon-192.png" />
+<style>
+  :root{--bg:#111827;--panel:#1f2937;--panel2:#0f172a;--line:#374151;--text:#e5e7eb;--muted:#9ca3af;--good:#10b981;--bad:#ef4444;--warn:#f59e0b;--btn:#14b8a6}
+  *{box-sizing:border-box}
+  body{margin:0;padding:16px;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text)}
+  main{max-width:560px;margin:0 auto}
+  h1{font-size:1.4rem;margin:4px 0 2px}
+  .back{display:inline-block;color:var(--btn);text-decoration:none;font-weight:700;padding:6px 0;min-height:32px}
+  .sub{color:var(--muted);font-size:.9rem;margin:0 0 8px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin:12px 0}
+  .card h2{font-size:1rem;margin:0 0 10px;display:flex;justify-content:space-between;align-items:center}
+  select,button{min-height:44px;border-radius:12px;border:1px solid var(--line);padding:8px 12px;font-size:1rem;background:#111827;color:var(--text)}
+  select{width:100%}
+  button{cursor:pointer}
+  .seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .seg button{font-size:.85rem;padding:6px 4px;line-height:1.15}
+  .seg button.on{background:var(--btn);color:#05211f;border-color:var(--btn);font-weight:800}
+  .grid{display:grid;grid-template-columns:34px repeat(9,1fr);gap:4px;align-items:center}
+  .suit{width:30px;height:30px}
+  .k{min-height:42px;padding:0;font-weight:700;font-size:.95rem;border-radius:9px;position:relative;font-variant-numeric:tabular-nums}
+  .k.on{background:#f8fafc;color:#111827;border-color:#f8fafc}
+  .k.dis{opacity:.3}
+  .k .r{position:absolute;left:0;right:0;bottom:1px;font-size:.6rem;font-weight:700;line-height:1}
+  .count{font-weight:800;font-variant-numeric:tabular-nums}
+  .row{display:flex;gap:8px;margin-top:10px}
+  .row button{flex:1;background:#374151}
+  .legend{color:var(--muted);font-size:.8rem;margin-top:8px}
+  .big{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
+  .stat .v{font-size:2rem;font-weight:900;font-variant-numeric:tabular-nums}
+  .stat .l{color:var(--muted);font-size:.85rem}
+  .stat.good .v{color:var(--good)}
+  .hist{display:flex;align-items:flex-end;gap:4px;height:130px;margin-top:14px;padding-top:16px}
+  .hist div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:.7rem;color:var(--muted);font-variant-numeric:tabular-nums}
+  .hist .b{width:100%;background:var(--btn);border-radius:5px 5px 0 0;min-height:1px}
+  .hist .b.z{background:var(--good)}
+  .hist .x{margin-top:4px;color:var(--text);font-weight:700}
+  .risk{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .chip{display:flex;align-items:center;gap:4px;padding:4px 8px 4px 4px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);font-size:.85rem;font-variant-numeric:tabular-nums}
+  .chip svg{width:20px;height:20px}
+  .chip.hot{border-color:var(--bad);color:#fecaca}
+  .chip.mid{border-color:var(--warn);color:#fde68a}
+  .muted{color:var(--muted);font-size:.85rem}
+  #empty{color:var(--muted);text-align:center;padding:10px 0}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <!-- heraldische Schraffur für die rechte Hälfte -->
+    <pattern id="lg-vl" width="3.6" height="4" patternUnits="userSpaceOnUse"><path d="M1.8 0V4" stroke="#000" stroke-width="1"/></pattern>
+    <pattern id="lg-hl" width="4" height="3.6" patternUnits="userSpaceOnUse"><path d="M0 1.8H4" stroke="#000" stroke-width="1"/></pattern>
+    <clipPath id="lg-r"><rect x="50" y="-10" width="60" height="120"/></clipPath>
+    <clipPath id="lg-c"><circle cx="50" cy="50" r="44"/></clipPath>
+    <!-- Eichel -->
+    <g id="lg-eichel">
+      <path d="M48 85C50 92 45 96 36 99C47 99 54 94 53 85Z" fill="#1e8c1e" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M28 50V24C28 11 38 3 50 3C62 3 72 11 72 24V50Z" fill="#ffe600"/>
+      <g clip-path="url(#lg-r)">
+        <path d="M28 50V24C28 11 38 3 50 3C62 3 72 11 72 24V50Z" fill="#e20000"/>
+        <path d="M28 50V24C28 11 38 3 50 3C62 3 72 11 72 24V50Z" fill="url(#lg-vl)"/>
+      </g>
+      <path d="M28 50V24C28 11 38 3 50 3C62 3 72 11 72 24V50Z" fill="none" stroke="#000" stroke-width="2.5" stroke-linejoin="round"/>
+      <rect x="28" y="50" width="22" height="7" fill="#1a4fd6"/>
+      <rect x="50" y="50" width="22" height="7" fill="#000"/>
+      <rect x="28" y="50" width="44" height="7" fill="none" stroke="#000" stroke-width="2"/>
+      <path d="M14 57H86C86 76 72 86 50 86C28 86 14 76 14 57Z" fill="#1e8c1e"/>
+      <path d="M14 57H86C86 76 72 86 50 86C28 86 14 76 14 57Z" fill="url(#lg-vl)" clip-path="url(#lg-r)"/>
+      <path d="M14 57H86C86 76 72 86 50 86C28 86 14 76 14 57Z" fill="none" stroke="#000" stroke-width="2.5" stroke-linejoin="round"/>
+      <path id="lg-komma" d="M27 62c3.5 0 6 2.5 5 7c-1 5-5 8-9 10c2.5-3.5 3.5-6 2.5-8.5c-2.5-1-3.5-2.5-3.5-4.5c0-2.5 2.5-4 5-4Z" fill="#000"/>
+      <use href="#lg-komma" transform="translate(20 0)"/>
+      <use href="#lg-komma" transform="translate(40 0)"/>
+    </g>
+    <!-- Laub (Grün) -->
+    <g id="lg-laub">
+      <path d="M48 78C49 88 45 93 37 97C47 96 54 90 53 78Z" fill="#1e8c1e" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M50 5C60 20 92 30 92 56C92 75 78 85 64 85C57 85 52 81 50 77C48 81 43 85 36 85C22 85 8 75 8 56C8 30 40 20 50 5Z" fill="#1e8c1e"/>
+      <path d="M50 5C60 20 92 30 92 56C92 75 78 85 64 85C57 85 52 81 50 77C48 81 43 85 36 85C22 85 8 75 8 56C8 30 40 20 50 5Z" fill="url(#lg-vl)" clip-path="url(#lg-r)"/>
+      <path d="M50 5C60 20 92 30 92 56C92 75 78 85 64 85C57 85 52 81 50 77C48 81 43 85 36 85C22 85 8 75 8 56C8 30 40 20 50 5Z" fill="none" stroke="#000" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M50 12V77M50 30L28 26M38 28L34 21M50 30L72 26M62 28L66 21M50 46L14 42M36 44L31 36M24 43L20 36M50 46L86 42M64 44L69 36M76 43L80 36M50 62L14 60M36 61L31 54M24 60.5L20 54M50 62L86 60M64 61L69 54M76 60.5L80 54" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+    </g>
+    <!-- Herz -->
+    <g id="lg-herz">
+      <path d="M50 92C30 72 8 56 8 34C8 20 18 10 31 10C41 10 47 17 50 24C53 17 59 10 69 10C82 10 92 20 92 34C92 56 70 72 50 92Z" fill="#e20000"/>
+      <path d="M50 92C30 72 8 56 8 34C8 20 18 10 31 10C41 10 47 17 50 24C53 17 59 10 69 10C82 10 92 20 92 34C92 56 70 72 50 92Z" fill="url(#lg-vl)" clip-path="url(#lg-r)"/>
+      <path d="M50 92C30 72 8 56 8 34C8 20 18 10 31 10C41 10 47 17 50 24C53 17 59 10 69 10C82 10 92 20 92 34C92 56 70 72 50 92Z" fill="none" stroke="#000" stroke-width="2.5" stroke-linejoin="round"/>
+    </g>
+    <!-- Schellen -->
+    <g id="lg-schellen">
+      <g clip-path="url(#lg-c)">
+        <rect width="100" height="100" fill="#ffe600"/>
+        <rect y="36" width="100" height="20" fill="#e20000"/>
+        <g clip-path="url(#lg-r)">
+          <rect width="100" height="36" fill="url(#lg-hl)"/>
+          <rect y="36" width="100" height="20" fill="url(#lg-vl)"/>
+          <rect y="56" width="100" height="44" fill="url(#lg-hl)"/>
+        </g>
+        <path d="M0 36H100M0 56H100" stroke="#000" stroke-width="2"/>
+        <g stroke="#000" stroke-width="1.8">
+          <circle cx="24" cy="46" r="6.5" fill="#ffe600"/><circle cx="24" cy="46" r="6.5" fill="url(#lg-hl)"/>
+          <circle cx="50" cy="46" r="6.5" fill="#ffe600"/><circle cx="50" cy="46" r="6.5" fill="url(#lg-hl)"/>
+          <circle cx="76" cy="46" r="6.5" fill="#ffe600"/><circle cx="76" cy="46" r="6.5" fill="url(#lg-hl)"/>
+        </g>
+        <g fill="#1e8c1e" stroke="#000" stroke-width="2" stroke-linejoin="round">
+          <path d="M48 98C28 98 16 86 18 68C36 68 46 82 48 98Z"/>
+          <path d="M52 98C72 98 84 86 82 68C64 68 54 82 52 98Z"/>
+          <path d="M50 99C35 88 35 70 50 58C65 70 65 88 50 99Z"/>
+        </g>
+        <g fill="url(#lg-vl)" clip-path="url(#lg-r)">
+          <path d="M52 98C72 98 84 86 82 68C64 68 54 82 52 98Z"/>
+          <path d="M50 99C35 88 35 70 50 58C65 70 65 88 50 99Z"/>
+        </g>
+      </g>
+      <circle cx="50" cy="50" r="44" fill="none" stroke="#000" stroke-width="2.5"/>
+    </g>
+  </defs></svg>
+<main>
+  <a class="back" href="./">← Zurück zum Punkteblock</a>
+  <h1>Herzln-Rechner</h1>
+  <p class="sub">Prognose für deine Hand: Karten antippen, Position wählen</p>
+
+  <div class="card">
+    <h2>Spiel</h2>
+    <select id="game">
+      <option value="stich">1 · Kein Stich</option>
+      <option value="herz">2 · Herz</option>
+      <option value="ober">3 · Ober</option>
+      <option value="mattl">4 · Mattl</option>
+      <option value="unter">5 · Unter</option>
+    </select>
+    <div class="muted" id="help" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card" id="seatCard">
+    <h2>Deine Position</h2>
+    <div class="seg" id="seat">
+      <button data-s="0">Vorhand<br><small>spielt aus</small></button>
+      <button data-s="1">2.</button>
+      <button data-s="2">3.</button>
+      <button data-s="3">Geber</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Deine Karten <span class="count" id="cnt">0/9</span></h2>
+    <div class="grid" id="grid"></div>
+    <div class="row">
+      <button id="rand">🎲 Zufällige Hand</button>
+      <button id="clear">Leeren</button>
+    </div>
+    <div class="legend">U = Unter · O = Ober · M = Mattl · S = Sau</div>
+  </div>
+
+  <div class="card" id="out">
+    <h2>Prognose</h2>
+    <div id="empty">Wähle genau 9 Karten.</div>
+    <div id="res" hidden>
+      <div class="big">
+        <div class="stat"><div class="v" id="prog">–</div><div class="l">Punkte erwartet</div></div>
+        <div class="stat good"><div class="v" id="p0">–</div><div class="l" id="p0l">Chance auf 0 Punkte</div></div>
+      </div>
+      <div class="hist" id="hist"></div>
+      <div class="muted" id="histL" style="text-align:center;margin-top:4px">Verteilung der Punkte</div>
+      <h2 style="margin-top:16px" id="riskT">Stichgefahr pro Karte</h2>
+      <div class="muted" id="riskD">Wie oft genau diese Karte einen Stich für dich holt</div>
+      <div class="risk" id="risk"></div>
+      <p class="muted" id="meta"></p>
+    </div>
+  </div>
+</main>
+
+<script>
+// ---- Karten ----
+const SUITS = ['eichel','laub','herz','schellen'];
+const SUITNAME = {eichel:'Eichel',laub:'Laub',herz:'Herz',schellen:'Schellen'};
+const RANKS = ['6','7','8','9','10','U','O','M','S'];
+const RANKNAME = ['6','7','8','9','10','Unter','Ober','Mattl','Sau'];
+const suitOf = c => (c / 9) | 0, rankOf = c => c % 9;
+const cardName = c => SUITNAME[SUITS[suitOf(c)]] + ' ' + RANKNAME[rankOf(c)];
+const icon = s => `<svg class="suit" viewBox="0 0 100 100"><use href="#lg-${SUITS[s]}"/></svg>`;
+
+// ---- Spiele ----
+// cardPts(c):  Strafpunkte einer Karte (in 10er-Einheiten); trickPts(trick): für den Stich-Nehmer
+const HERZ = 2, OBER = 6, MATTL_HERZ = HERZ * 9 + 7;
+const sumPts = G => tr => tr.reduce((s, c) => s + G.cardPts(c), 0);
+const GAMES = {
+  stich: {
+    cardPts: () => 0,
+    trickPts: () => 1,
+    canLead: () => true,
+    chipMode: 'pct',
+    riskTitle: 'Stichgefahr pro Karte',
+    help: '10 Punkte pro Stich.',
+    riskDesc: 'Wie oft genau diese Karte einen Stich für dich holt'
+  },
+  herz: {
+    cardPts: c => suitOf(c) === HERZ ? 1 : 0,
+    canLead: (c, hand) => suitOf(c) !== HERZ || hand.every(x => suitOf(x) === HERZ),
+    chipMode: 'pts',
+    help: '10 Punkte pro Herz-Karte in deinen Stichen. Herz darf erst ausgespielt werden, wenn man nur mehr Herz hat.',
+    riskDesc: 'Wie viele Punkte dir diese Karte im Schnitt einbringt (Herz in den Stichen, die sie gewinnt)'
+  },
+  ober: {
+    cardPts: c => rankOf(c) !== OBER ? 0 : suitOf(c) === HERZ ? 3 : 2,
+    canLead: () => true,
+    isDone: played => played[6] && played[15] && played[24] && played[33],
+    chipMode: 'pts',
+    help: '20 Punkte pro Ober in deinen Stichen, Herz-Ober 30. Das Spiel endet, sobald alle Ober gefallen sind.',
+    riskDesc: 'Wie viele Punkte dir diese Karte im Schnitt einbringt (Ober in den Stichen, die sie gewinnt)'
+  },
+  mattl: {
+    cardPts: c => c === MATTL_HERZ ? 9 : 0,
+    canLead: (c, hand) => suitOf(c) !== HERZ || hand.every(x => suitOf(x) === HERZ),
+    isDone: played => played[MATTL_HERZ],
+    chipMode: 'pts',
+    help: 'Nur der Herz-Mattl zählt: 90 Punkte für den, der ihn im Stich hat. Herz darf erst ausgespielt werden, wenn man nur mehr Herz hat. Das Spiel endet, sobald der Mattl fällt.',
+    riskDesc: 'Wie viele Punkte dir diese Karte im Schnitt einbringt (der Mattl in den Stichen, die sie gewinnt)'
+  }
+};
+for (const G of Object.values(GAMES)) if (!G.trickPts) G.trickPts = sumPts(G);
+
+// ---- Simulation ----
+// Alle Spieler folgen derselben Heuristik:
+//  Ausspielen: Karte, unter die möglichst wenig unbekannte Karten passen (niedrig ausspielen);
+//              eigene Strafkarten nur ausspielen, wenn es nicht anders geht.
+//  Bedienen:   ist die Karte knapp unter dem Stich eine Strafkarte → drunter dazugeben (dem Gewinner schenken);
+//              als Letzter in einem harmlosen Stich die höchste straffreie Karte loswerden;
+//              sonst höchste Karte unter dem Stich (drunterbleiben); muss man drüber: straffreie Karte,
+//              als Letzter die höchste, sonst die niedrigste (Chance, dass wer drüber muss).
+//  Abwerfen:   zuerst die teuerste Strafkarte; sonst die gefährlichste Karte
+//              (viele unbekannte niedrigere in der Farbe, hoher Rang).
+function simulate(gameId, myCards, mySeat, N) {
+  const G = GAMES[gameId];
+  const mine = new Set(myCards);
+  const rest = []; for (let c = 0; c < 36; c++) if (!mine.has(c)) rest.push(c);
+  const dist = new Float64Array(10), cardWins = new Float64Array(36);
+  const owner = new Int8Array(36), played = new Uint8Array(36);
+  const hands = [[], [], [], []];
+
+  // unbekannte (nicht gespielte, nicht eigene) Karten unter / über c aus Sicht von p
+  const lowerOut = (p, c) => { let n = 0; for (let x = c - rankOf(c); x < c; x++) if (!played[x] && owner[x] !== p) n++; return n; };
+  const higherOut = (p, c) => { let n = 0, top = c - rankOf(c) + 9; for (let x = c + 1; x < top; x++) if (!played[x] && owner[x] !== p) n++; return n; };
+
+  function chooseLead(p) {
+    const h = hands[p]; let best = -1, bs = Infinity;
+    for (const c of h) {
+      if (!G.canLead(c, h)) continue;
+      const L = lowerOut(p, c), H = higherOut(p, c);
+      let s = H === 0 ? 1000 + L * 10 + rankOf(c) : L * 10 - H;   // H=0 → sicherer Stich
+      s += G.cardPts(c) * 30;
+      if (s < bs) { bs = s; best = c; }
+    }
+    return best;
+  }
+  function chooseFollow(p, leadSuit, winCard, last, trick) {
+    const h = hands[p]; let under = -1, any = false;
+    let lo = -1, hi = -1, loSafe = -1, hiSafe = -1;
+    for (const c of h) {
+      if (suitOf(c) !== leadSuit) continue; any = true;
+      if (c < winCard && c > under) under = c;
+      if (lo < 0 || c < lo) lo = c;
+      if (c > hi) hi = c;
+      if (G.cardPts(c) === 0) { if (loSafe < 0 || c < loSafe) loSafe = c; if (c > hiSafe) hiSafe = c; }
+    }
+    if (any) {
+      if (under >= 0 && G.cardPts(under) > 0) return under;                     // Strafkarte drunter schenken
+      if (last && hiSafe >= 0 && G.trickPts(trick) === 0) return hiSafe;        // harmloser Stich → hohe Karte los
+      if (under >= 0) return under;
+      return last ? (hiSafe >= 0 ? hiSafe : hi) : (loSafe >= 0 ? loSafe : lo);   // muss drüber
+    }
+    // Fremd abwerfen: teuerste Strafkarte, sonst gefährlichste Karte
+    let best = -1, bd = -Infinity;
+    for (const c of h) { const d = G.cardPts(c) * 1000 + lowerOut(p, c) * 10 + rankOf(c); if (d > bd) { bd = d; best = c; } }
+    return best;
+  }
+
+  for (let g = 0; g < N; g++) {
+    for (let i = rest.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = rest[i]; rest[i] = rest[j]; rest[j] = t; }
+    let k = 0;
+    for (let p = 0; p < 4; p++) {
+      if (p === mySeat) hands[p] = myCards.slice();
+      else { hands[p] = rest.slice(k, k + 9); k += 9; }
+      for (const c of hands[p]) owner[c] = p;
+    }
+    played.fill(0);
+    let leader = 0, myPts = 0;
+    for (let t = 0; t < 9; t++) {
+      let win = -1, winner = -1, leadSuit = -1;
+      const trick = [];
+      for (let i = 0; i < 4; i++) {
+        const p = (leader + i) & 3;
+        const c = i === 0 ? chooseLead(p) : chooseFollow(p, leadSuit, win, i === 3, trick);
+        const h = hands[p]; h.splice(h.indexOf(c), 1); played[c] = 1; trick.push(c);
+        if (i === 0) { leadSuit = suitOf(c); win = c; winner = p; }
+        else if (suitOf(c) === leadSuit && c > win) { win = c; winner = p; }
+      }
+      if (winner === mySeat) { const pt = G.trickPts(trick); myPts += pt; cardWins[win] += G.chipMode === 'pct' ? 1 : pt; }
+      leader = winner;
+      if (G.isDone && G.isDone(played)) break;
+    }
+    dist[myPts]++;
+  }
+  let e = 0; for (let i = 0; i < 10; i++) { dist[i] /= N; e += i * dist[i]; }
+  for (let c = 0; c < 36; c++) cardWins[c] /= N;
+  return { dist, expTricks: e, cardWins };
+}
+
+// ---- Spiel 5: Unter (Anlegen) ----
+// Start mit Eichel-Unter (wer ihn hat, beginnt), dann reihum. Angelegt wird in einer Farbe direkt
+// unter der niedrigsten oder über der höchsten liegenden Karte; ein Unter eröffnet eine neue Farbe.
+// Zugzwang: wer kann, muss anlegen. Platz 1/2/3/4 = 180/120/60/0 Punkte.
+// Strategie aller Spieler: die Karte, hinter der möglichst viele eigene und wenig fremde Karten
+// liegen (eigene Reihen öffnen, Gegner-Reihen blockieren); Endkarten (6, Sau) sind harmlos.
+const UNTER = 5, EICHEL_UNTER = 0 * 9 + UNTER;
+GAMES.unter = {
+  sim: simulateUnter,
+  noSeat: true,
+  chipMode: 'pct',
+  riskTitle: 'Bremskarten',
+  riskDesc: 'Wie oft diese Karte deine letzte ist, also dich am längsten aufhält',
+  goodLabel: 'Chance auf 180 Punkte (Platz 1)',
+  histLabel: 'Verteilung der Punkte (Platz 1 bis 4)',
+  help: 'Anlegen ab Eichel-Unter, reihum, mit Zugzwang. Platz 1: 180, Platz 2: 120, Platz 3: 60, Letzter: 0 Punkte. Wer den Eichel-Unter hat, beginnt, deshalb spielt die Position hier keine Rolle.'
+};
+function simulateUnter(myCards, N) {
+  const mine = new Set(myCards);
+  const rest = []; for (let c = 0; c < 36; c++) if (!mine.has(c)) rest.push(c);
+  const dist = new Float64Array(4), lastCard = new Float64Array(36);
+  const owner = new Int8Array(36), lo = new Int8Array(4), hi = new Int8Array(4);
+  const hands = [[], [], [], []];
+  const legal = c => { const s = suitOf(c), r = rankOf(c); return lo[s] < 0 ? r === UNTER : (r === lo[s] - 1 || r === hi[s] + 1); };
+  function score(p, c) {
+    const s = suitOf(c), r = rankOf(c), base = s * 9;
+    let a, b;                                             // Bereich der Karten, die c freigibt
+    if (lo[s] < 0) { a = 0; b = 8; } else if (r < lo[s]) { a = 0; b = r - 1; } else { a = r + 1; b = 8; }
+    let own = 0, opp = 0;
+    for (let x = a; x <= b; x++) { if (x === r) continue; if (owner[base + x] === p) own++; else opp++; }
+    let sc = own * 10 - opp;
+    if (own + opp === 0) sc += 3;                         // Endkarte: hilft niemandem
+    const next = lo[s] < 0 ? -1 : (r < lo[s] ? r - 1 : r + 1);
+    if (next >= 0 && next <= 8 && owner[base + next] === p) sc += 5;
+    return sc;
+  }
+  function play(p, c) {
+    const h = hands[p]; h.splice(h.indexOf(c), 1);
+    const s = suitOf(c), r = rankOf(c);
+    if (lo[s] < 0) { lo[s] = hi[s] = r; } else if (r < lo[s]) lo[s] = r; else hi[s] = r;
+  }
+  for (let g = 0; g < N; g++) {
+    for (let i = rest.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = rest[i]; rest[i] = rest[j]; rest[j] = t; }
+    hands[0] = myCards.slice();
+    for (let p = 1; p < 4; p++) hands[p] = rest.slice((p - 1) * 9, p * 9);
+    for (let p = 0; p < 4; p++) for (const c of hands[p]) owner[c] = p;
+    lo.fill(-1); hi.fill(-1);
+    let p = owner[EICHEL_UNTER], place = 0, myPlace = 3, left = 36;
+    play(p, EICHEL_UNTER); left--;
+    while (left > 0) {
+      p = (p + 1) & 3;
+      const h = hands[p]; if (!h.length) continue;
+      let best = -1, bs = -Infinity;
+      for (const c of h) if (legal(c)) { const sc = score(p, c); if (sc > bs) { bs = sc; best = c; } }
+      if (best < 0) continue;                             // kann nicht anlegen → aussetzen
+      play(p, best); left--;
+      if (!h.length) {
+        if (p === 0) { myPlace = place; lastCard[best]++; }
+        place++;
+      }
+    }
+    dist[myPlace]++;
+  }
+  const values = [180, 120, 60, 0];
+  let e = 0; for (let i = 0; i < 4; i++) { dist[i] /= N; e += values[i] * dist[i]; }
+  for (let c = 0; c < 36; c++) lastCard[c] /= N;
+  return { dist, values, expPts: e, cardWins: lastCard };
+}
+
+// ---- UI ----
+const state = { cards: new Set(), seat: 0, game: 'stich' };
+const gameSel = document.getElementById('game');
+gameSel.addEventListener('change', () => { state.game = gameSel.value; render(); });
+const grid = document.getElementById('grid');
+let html = '';
+for (let s = 0; s < 4; s++) {
+  html += `<div title="${SUITNAME[SUITS[s]]}">${icon(s)}</div>`;
+  for (let r = 0; r < 9; r++) html += `<button class="k" data-c="${s * 9 + r}" title="${SUITNAME[SUITS[s]]} ${RANKNAME[r]}">${RANKS[r]}</button>`;
+}
+grid.innerHTML = html;
+
+function render() {
+  const n = state.cards.size;
+  document.getElementById('cnt').textContent = n + '/9';
+  grid.querySelectorAll('.k').forEach(b => {
+    const on = state.cards.has(+b.dataset.c);
+    b.classList.toggle('on', on); b.classList.toggle('dis', !on && n >= 9);
+  });
+  document.querySelectorAll('#seat button').forEach(b => b.classList.toggle('on', +b.dataset.s === state.seat));
+  gameSel.value = state.game;
+  document.getElementById('help').textContent = GAMES[state.game].help;
+  document.getElementById('seatCard').hidden = !!GAMES[state.game].noSeat;
+  try { localStorage.setItem('herzln_rechner', JSON.stringify({ cards: [...state.cards], seat: state.seat, game: state.game })); } catch (e) {}
+  compute();
+}
+
+let timer = 0;
+function compute() {
+  const res = document.getElementById('res'), empty = document.getElementById('empty');
+  if (state.cards.size !== 9) { res.hidden = true; empty.hidden = false; empty.textContent = 'Wähle genau 9 Karten (' + state.cards.size + '/9).'; return; }
+  empty.hidden = false; empty.textContent = 'rechne …';
+  clearTimeout(timer);
+  timer = setTimeout(() => {
+    const N = 20000, t0 = performance.now();
+    const cards = [...state.cards].sort((a, b) => a - b);
+    const G = GAMES[state.game];
+    const r = G.sim ? G.sim(cards, N) : simulate(state.game, cards, state.seat, N);
+    const values = r.values || [...r.dist].map((_, i) => i * 10);
+    const exp = r.expPts != null ? r.expPts : r.expTricks * 10;
+    document.getElementById('riskT').textContent = G.riskTitle || 'Punkte pro Karte';
+    document.getElementById('p0l').textContent = G.goodLabel || 'Chance auf 0 Punkte';
+    document.getElementById('histL').textContent = G.histLabel || 'Verteilung der Punkte';
+    document.getElementById('riskD').textContent = G.riskDesc;
+    const ms = Math.round(performance.now() - t0);
+    document.getElementById('prog').textContent = Math.round(exp);
+    document.getElementById('p0').textContent = Math.round(r.dist[0] * 100) + ' %';
+    const max = Math.max(...r.dist);
+    document.getElementById('hist').innerHTML = [...r.dist].map((p, i) => {
+      const pct = p * 100, lbl = pct >= 0.5 ? Math.round(pct) + '%' : (p > 0 ? '<1%' : '');
+      return `<div>${lbl}<span class="b${i === 0 ? ' z' : ''}" style="height:${max ? p / max * 85 : 0}%"></span><span class="x">${values[i]}</span></div>`;
+    }).join('');
+    document.getElementById('risk').innerHTML = cards
+      .map(c => [c, r.cardWins[c]]).sort((a, b) => b[1] - a[1])
+      .map(([c, p]) => `<span class="chip ${p >= .5 ? 'hot' : p >= .15 ? 'mid' : ''}" title="${cardName(c)}"><svg viewBox="0 0 100 100"><use href="#lg-${SUITS[suitOf(c)]}"/></svg>${RANKS[rankOf(c)]} · ${G.chipMode === 'pct' ? Math.round(p * 100) + ' %' : 'Ø ' + (p * 10).toLocaleString('de-AT', { maximumFractionDigits: 1 }) + ' P'}</span>`)
+      .join('');
+    document.getElementById('meta').textContent = `${N.toLocaleString('de-AT')} zufällige Verteilungen der übrigen 27 Karten, ${ms} ms. Alle spielen nach derselben einfachen Strategie, die Zahlen sind also Richtwerte.`;
+    empty.hidden = true; res.hidden = false;
+  }, 30);
+}
+
+grid.addEventListener('click', e => {
+  const b = e.target.closest('.k'); if (!b) return;
+  const c = +b.dataset.c;
+  if (state.cards.has(c)) state.cards.delete(c); else if (state.cards.size < 9) state.cards.add(c);
+  render();
+});
+document.getElementById('seat').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return; state.seat = +b.dataset.s; render();
+});
+document.getElementById('rand').addEventListener('click', () => {
+  const d = [...Array(36).keys()];
+  for (let i = 35; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [d[i], d[j]] = [d[j], d[i]]; }
+  state.cards = new Set(d.slice(0, 9)); render();
+});
+document.getElementById('clear').addEventListener('click', () => { state.cards.clear(); render(); });
+
+try { const s = JSON.parse(localStorage.getItem('herzln_rechner') || 'null'); if (s) { state.cards = new Set(s.cards); state.seat = s.seat | 0; if (GAMES[s.game]) state.game = s.game; } } catch (e) {}
+render();
+</script>
+</body>
+</html>
